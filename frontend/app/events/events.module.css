@@ -1,0 +1,111 @@
+.heroSection {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4rem 2rem;
+  background-color: #ffffff;
+  min-height: 300px;
+  width: 100vw;
+  margin: auto;
+  /* border: 2px solid red; */
+}
+
+.heroContent {
+  flex: 1;
+  max-width: 600px;
+  z-index: 10;
+  padding-right: 1rem;
+}
+
+.tagline {
+  font-size: 1rem;
+  color: #000000;
+  margin-bottom: 1rem;
+}
+
+.title {
+  font-size: 3rem;
+  font-weight: bold;
+  color: rgb(0, 0, 0);
+  margin-bottom: 2rem;
+  line-height: 1.2;
+}
+
+.highlight {
+  color: #8a4fff;
+}
+
+.statsContainer {
+  display: flex;
+  gap: 1.5rem;
+}
+
+.statBox {
+  background-color: #8a4fff;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  width: 120px;
+  height: 100px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.statNumber {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: white;
+}
+
+.statLabel {
+  font-size: 0.875rem;
+  color: white;
+}
+
+.imageWrapper {
+  display: none;
+  height: 60vh;
+  /* border: 2px solid red; */
+}
+
+@media (min-width: 480px) {
+  .heroSection {
+    display: flex;
+    justify-content: center;
+  }
+}
+
+/* Tablet and up */
+@media (min-width: 768px) {
+  .imageWrapper {
+    display: block;
+    position: relative;
+    width: 50%;
+    min-width: 400px;
+  }
+
+  .imageContainer {
+    position: absolute;
+    top: 0;
+    right: -25%;
+    width: 125%;
+    height: 100%;
+  }
+}
+
+/* Larger screens */
+@media (min-width: 1200px) {
+  .heroSection {
+    padding: 6rem 4rem;
+  }
+
+  .title {
+    font-size: 3.5rem;
+  }
+
+  .imageContainer {
+    right: -45%;
+    width: 120%;
+  }
+}

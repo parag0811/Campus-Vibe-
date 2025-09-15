@@ -1,0 +1,159 @@
+.rightPanel {
+  width: 60%;
+  background-color: #ffffff;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 2rem;
+}
+
+.rightContent {
+  width: 100%;
+  max-width: 500px;
+}
+
+.logo {
+  text-align: center;
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 1.5rem;
+  color: #000;
+}
+
+.highlight {
+  color: #8a2be2;
+}
+
+.title {
+  font-size: 1.8rem;
+  text-align: center;
+  margin-bottom: 2rem;
+  color: #000;
+}
+
+.signUpForm {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  align-items: center;
+}
+
+.formGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.input {
+  padding: 0.8rem;
+  border: 1px solid #e0e0e0;
+  border-radius: 0.3rem;
+  font-size: 1rem;
+  transition: border 0.3s ease;
+  background-color: #fff;
+  color: #000;
+}
+
+.input:focus {
+  outline: none;
+  border-color: #8a2be2;
+}
+
+.signUpButton {
+  background-color: #8a2be2;
+  color: white;
+  border: none;
+  padding: 1rem 3rem;
+  border-radius: 0.3rem;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background-color 0.3s ease;
+  width: auto;
+  display: inline-block;
+  margin: 0 auto;
+}
+
+.signUpButton:hover {
+  background-color: #7722c9;
+}
+
+.divider {
+  text-align: center;
+  position: relative;
+  margin: 1.5rem 0;
+}
+
+.divider::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background-color: #e0e0e0;
+}
+
+.divider span {
+  position: relative;
+  padding: 0 1rem;
+  background-color: white;
+  color: #888;
+}
+
+.googleButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.8rem;
+  border: 1px solid #e0e0e0;
+  border-radius: 0.3rem;
+  background-color: white;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+  color: black;
+}
+
+.googleButton:hover {
+  background-color: #f8f8f8;
+}
+
+.googleIcon {
+  font-size: 1.2rem;
+}
+
+.switchText {
+  text-align: center;
+  margin-top: 1rem;
+  color: #555;
+}
+
+@media (max-width: 992px) {
+  .rightPanel {
+    width: 65%;
+  }
+}
+
+@media (max-width: 768px) {
+  .rightPanel {
+    width: 100%;
+    padding: 2rem 1.5rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .rightContent {
+    padding: 0 0.5rem;
+  }
+
+  .title {
+    font-size: 1.5rem;
+  }
+}

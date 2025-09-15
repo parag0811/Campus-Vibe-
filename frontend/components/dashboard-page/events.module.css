@@ -1,0 +1,261 @@
+.container {
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto",
+    sans-serif;
+  background: #f8f8fa;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Hero Section */
+.heroSection {
+  border-radius: 20px;
+  margin: 20px;
+  padding: 40px;
+  position: relative;
+  overflow: hidden;
+  min-height: 200px;
+}
+
+.heroContent {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  max-width: 1200px;
+  width: 100%;
+}
+
+.heroText {
+  flex: 1;
+  color: white;
+}
+
+.heroTitle {
+  font-size: 2.5rem;
+  font-weight: 700;
+  line-height: 1.2;
+  margin: 0 0 16px 0;
+  letter-spacing: -0.025em;
+}
+
+.heroSubtitle {
+  font-size: 1rem;
+  line-height: 1.5;
+  margin: 0 0 32px 0;
+  opacity: 0.9;
+}
+
+.heroButtons {
+  display: flex;
+  gap: 16px;
+}
+
+.discoverBtn {
+  background: white;
+  color: #667eea;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.discoverBtn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.watchBtn {
+  background: transparent;
+  color: white;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  padding: 10px 24px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.watchBtn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes fly {
+  0%,
+  100% {
+    transform: rotate(-15deg) translateY(0px);
+  }
+  50% {
+    transform: rotate(-15deg) translateY(-15px);
+  }
+}
+
+/* Events Section */
+.eventsSection {
+  padding: 40px 20px;
+}
+
+.sectionTitle {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #2d3748;
+  margin: 0 0 32px 0;
+  letter-spacing: -0.025em;
+}
+
+.eventsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(380px, 0.2fr));
+  gap: 24px;
+  padding: 20px;
+  /* justify-content: center; */
+  /* border: 2px solid red; */
+}
+
+.eventCard {
+  background: white;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+  padding: 20px;
+  border: 1px solid #e2e8f0;
+
+  width: 100%;
+  max-width: 300px;
+  height: 400px;
+
+  display: flex;
+  flex-direction: column;
+  height: auto;
+}
+
+.eventCard:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1);
+}
+
+.eventImageContainer {
+  position: relative;
+  height: 160px;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 10px;
+}
+
+.eventImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+  border-radius: 10px;
+}
+
+.favoriteBtn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: rgba(255, 255, 255, 0.5);
+  border: none;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+}
+
+.favoriteBtn:hover {
+  background: white;
+  transform: scale(1.1);
+}
+
+.eventTitle {
+  color: black;
+}
+
+.eventDate {
+  color: gray;
+}
+
+.eventContent {
+  padding: 20px 0 0 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.eventFooter {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.eventDate {
+  color: #10107b;
+}
+
+.analyticsBtn {
+  height: 40px;
+  width: 100px;
+  color: #10107b;
+  background-color: white;
+  border: none;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+.editBtn {
+  height: 40px;
+  width: 100px;
+  color: white;
+  background-color: #10107b;
+  border: none;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(16, 16, 123, 0.2);
+  position: relative;
+  overflow: hidden;
+}
+
+.editBtn:hover {
+  background-color: #1a1a8e;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(16, 16, 123, 0.3);
+}
+
+.errorText {
+  color: black;
+  font-weight: 600;
+  text-align: center;
+  margin-top: 20px;
+  font-size: 1.5rem;
+  }

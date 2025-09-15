@@ -1,0 +1,285 @@
+/* Error page styles with direct RGB colors */
+.errorPage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  width: 100%;
+  padding: 2rem;
+  position: relative;
+  overflow: hidden;
+  text-align: center;
+  background: rgb(15, 23, 42);
+  color: rgb(248, 250, 252);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* Animated background */
+.backgroundGradient {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, rgb(15, 23, 42) 0%, rgb(30, 41, 59) 50%, rgb(51, 65, 85) 100%);
+  z-index: -1;
+  animation: gradientShift 15s ease infinite;
+}
+
+@keyframes gradientShift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+/* Floating particles */
+.particlesContainer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+}
+
+.particle {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: 0 0 10px rgba(99, 102, 241, 0.3);
+  animation: float 10s linear infinite;
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0) translateX(0);
+  }
+  25% {
+    transform: translateY(-20px) translateX(10px);
+  }
+  50% {
+    transform: translateY(0) translateX(20px);
+  }
+  75% {
+    transform: translateY(20px) translateX(10px);
+  }
+}
+
+/* Error content */
+.content {
+  position: relative;
+  z-index: 1;
+  max-width: 600px;
+  padding: 3rem;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(12px);
+  border-radius: 1.5rem;
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+/* Logo */
+.logoContainer {
+  margin-bottom: 1rem;
+}
+
+.logo {
+  font-size: 1.8rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: rgb(248, 250, 252);
+}
+
+.logoAccent {
+  color: rgb(99, 102, 241);
+  margin-left: 4px;
+}
+
+/* Error details */
+.statusCode {
+  font-size: 7rem;
+  font-weight: 800;
+  line-height: 1;
+  margin: 0;
+  background: linear-gradient(90deg, rgb(99, 102, 241) 0%, rgb(168, 85, 247) 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shine 3s linear infinite;
+}
+
+@keyframes shine {
+  to {
+    background-position: 200% center;
+  }
+}
+
+.title {
+  font-size: 2.25rem;
+  font-weight: 700;
+  margin: 0;
+  padding: 0;
+  color: rgb(248, 250, 252);
+}
+
+.message {
+  font-size: 1.125rem;
+  line-height: 1.6;
+  margin: 0.75rem 0 1.5rem;
+  color: rgb(203, 213, 225);
+  max-width: 90%;
+}
+
+/* Buttons */
+.buttonContainer {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin: 1rem 0;
+}
+
+.button {
+  padding: 0.85rem 1.75rem;
+  border-radius: 0.75rem;
+  font-weight: 600;
+  transition: all 0.3s;
+  cursor: pointer;
+  font-size: 1rem;
+  border: none;
+  position: relative;
+  overflow: hidden;
+  z-index: 1;
+  letter-spacing: 0.5px;
+}
+
+.button::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -2;
+}
+
+.button::before {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 0%;
+  height: 100%;
+  transition: all 0.3s;
+  z-index: -1;
+}
+
+.retryButton {
+  background: rgb(99, 102, 241);
+  color: white;
+}
+
+.retryButton:hover {
+  box-shadow: 0 10px 20px -5px rgba(99, 102, 241, 0.4);
+  transform: translateY(-3px);
+}
+
+.retryButton::before {
+  background: rgb(79, 70, 229);
+}
+
+.retryButton:hover::before {
+  width: 100%;
+}
+
+.homeButton {
+  background: transparent;
+  color: rgb(228, 228, 231);
+  border: 1px solid rgb(99, 102, 241);
+}
+
+.homeButton:hover {
+  color: white;
+  box-shadow: 0 10px 20px -5px rgba(99, 102, 241, 0.3);
+  transform: translateY(-3px);
+}
+
+.homeButton::before {
+  background: rgba(99, 102, 241, 0.1);
+}
+
+.homeButton:hover::before {
+  width: 100%;
+}
+
+/* Support text */
+.supportText {
+  font-size: 0.9rem;
+  color: rgb(148, 163, 184);
+  margin: 1rem 0 0;
+  font-style: italic;
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+  .content {
+    padding: 2rem;
+  }
+  
+  .statusCode {
+    font-size: 5rem;
+  }
+  
+  .title {
+    font-size: 1.75rem;
+  }
+  
+  .message {
+    font-size: 1rem;
+  }
+  
+  .button {
+    padding: 0.75rem 1.5rem;
+    font-size: 0.95rem;
+  }
+  
+  .buttonContainer {
+    gap: 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .content {
+    padding: 1.5rem;
+  }
+  
+  .statusCode {
+    font-size: 4rem;
+  }
+  
+  .title {
+    font-size: 1.5rem;
+  }
+  
+  .button {
+    width: 100%;
+    margin-bottom: 0.5rem;
+  }
+  
+  .buttonContainer {
+    flex-direction: column;
+    width: 100%;
+  }
+}

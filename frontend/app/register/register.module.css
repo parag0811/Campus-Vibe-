@@ -1,0 +1,138 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Lato:ital,wght@0,100;0,300;0,400;0,700;0,900;1,100;1,300;1,400;1,700;1,900&display=swap");
+
+.container {
+  display: flex;
+  height: 100vh;
+  width: 100%;
+  overflow: hidden;
+  font-family: "Lato";
+}
+
+/* Left Panel - Login/Welcome Side */
+.leftPanel {
+  width: 40%;
+  position: relative;
+  color: white;
+  overflow: hidden;
+}
+
+.backgroundImage {
+  object-fit: cover;
+  z-index: 0;
+}
+
+.overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.4);
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center; /* Center horizontally */
+}
+
+.leftContent {
+  max-width: 400px;
+  text-align: center;
+}
+
+.leftContent h2 {
+  font-size: 2.5rem;
+  margin-bottom: 1rem;
+  font-weight: 700;
+}
+
+.leftContent p {
+  margin-bottom: 2rem;
+  font-size: 1rem;
+  opacity: 0.9;
+}
+
+.loginForm {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  width: 100%;
+}
+
+.signInButton {
+  background-color: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: 1px solid white;
+  padding: 0.6rem 1.5rem;
+  border-radius: 0.3rem;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  width: auto;
+  display: inline-block;
+  margin-top: 1rem;
+}
+
+.signInButton:hover {
+  background-color: rgba(255, 255, 255, 0.3);
+}
+
+.switchButton {
+  background-color: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: 1px solid white;
+  padding: 0.8rem 2rem;
+  border-radius: 0.3rem;
+  cursor: pointer;
+  font-weight: 600;
+  margin-top: 1rem;
+  transition: all 0.3s ease;
+}
+
+.switchButton:hover {
+  background-color: rgba(255, 255, 255, 0.3);
+}
+
+/* Responsive Styles */
+@media (max-width: 992px) {
+  .leftPanel {
+    width: 35%;
+  }
+}
+
+@media (max-width: 768px) {
+  .container {
+    flex-direction: column;
+    height: auto;
+  }
+
+  .leftPanel {
+    width: 100%;
+    height: 300px;
+  }
+
+  .overlay {
+    padding: 1.5rem;
+  }
+
+  .leftContent h2 {
+    font-size: 2rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .leftPanel {
+    height: 250px;
+  }
+
+  .leftContent h2 {
+    font-size: 1.8rem;
+  }
+
+  .title {
+    font-size: 1.5rem;
+  }
+}
