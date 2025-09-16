@@ -1,96 +1,78 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { useParams } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
+import { useToast } from "@/components/common/toast";
 import styles from "./EventDetail.module.css";
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
 const EventDetailPage = () => {
   const [event, setEvent] = useState(null);
   const [organisation, setOrganisation] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [isRegistering, setIsRegistering] = useState(false);
   const router = useRouter();
-
-  // Extract eventId from params (Next.js dynamic route)
+  const { toast } = useToast();
   const { eventId } = useParams();
-  console.log(eventId);
 
   useEffect(() => {
     const fetchEventDetails = async () => {
       if (!eventId) return;
-
       try {
         setLoading(true);
-        const response = await fetch(
-          `http://localhost:5000/eventDetail/${eventId}`
-        );
-
-        if (!response.ok) {
-          throw new Error(`Failed to fetch event: ${response.status}`);
-        }
-
+        const response = await fetch(`${API_BASE}/eventDetail/${eventId}`);
         const data = await response.json();
+        if (!response.ok) {
+          throw new Error(
+            data.message || `Failed to fetch event: ${response.status}`
+          );
+        }
         setEvent(data.event);
         setOrganisation(data.event?.created_by_organisation);
       } catch (err) {
-        setError(
+        toast.error(
           err.message || "Something went wrong while fetching event details"
         );
-        console.error("Error fetching event:", err);
       } finally {
         setLoading(false);
       }
     };
-
     fetchEventDetails();
-  }, [eventId]);
+  }, [eventId, toast]);
 
   const handleRegistration = async () => {
     if (!eventId) return;
-
     try {
       setIsRegistering(true);
-
       const response = await fetch(
-        `http://localhost:5000/eventRegistration/${eventId}`,
+        `${API_BASE}/eventRegistration/${eventId}`,
         {
           method: "POST",
           credentials: "include",
         }
       );
-
       const data = await response.json();
       if (!response.ok) {
         throw new Error(data.message || "Registration failed");
       }
-
-      alert(data.message || "Registration successful!");
+      toast.success(data.message || "Registration successful!");
       // Optionally refresh event data to show updated attendee count
     } catch (err) {
-      alert(`Registration failed: ${err.message}`);
-      console.error("Registration error:", err);
+      toast.error(err.message || "Registration failed.");
     } finally {
       setIsRegistering(false);
     }
   };
 
   const formatDate = (dateString) => {
+    if (!dateString) return "N/A";
     const date = new Date(dateString);
+    if (isNaN(date)) return "N/A";
     return date.toLocaleDateString("en-US", {
       weekday: "long",
       year: "numeric",
       month: "long",
       day: "numeric",
-    });
-  };
-
-  const formatTime = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: true,
     });
   };
 
@@ -114,29 +96,18 @@ const EventDetailPage = () => {
     );
   }
 
-  if (error) {
-    return (
-      <div className={styles.container}>
-        <div className={styles.errorContainer}>
-          <h2>Error Loading Event</h2>
-          <p>{error}</p>
-          <button
-            onClick={() => window.location.reload()}
-            className={styles.retryBtn}
-          >
-            Try Again
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   if (!event) {
     return (
       <div className={styles.container}>
         <div className={styles.errorContainer}>
           <h2>Event Not Found</h2>
           <p>The event you're looking for doesn't exist or has been removed.</p>
+          <button
+            onClick={() => router.back()}
+            className={styles.retryBtn}
+          >
+            Go Back
+          </button>
         </div>
       </div>
     );
@@ -228,58 +199,41 @@ const EventDetailPage = () => {
           </div>
 
           <div className={styles.rightContent}>
-            <div className={styles.heroRight}>
-              <div className={styles.eventCard}>
-                <div className={styles.dateTimeSection}>
-                  <h3 className={styles.sectionTitle}>Date & time</h3>
-                  <p className={styles.dateTime}>
-                    {formatDate(event.start_date)},{" "}
-                    {formatTime(event.start_date)}
-                  </p>
-                  <p className={styles.endTime}>
-                    Ends: {formatDate(event.end_date)},{" "}
-                    {formatTime(event.end_date)}
-                  </p>
-                  <button className={styles.addCalendarBtn}>
-                    Add to calendar
-                  </button>
-                </div>
-                <button
-                  className={styles.bookNowBtn}
-                  onClick={handleRegistration}
-                  disabled={!isRegistrationOpen() || isRegistering}
-                >
-                  {isRegistering
-                    ? "Registering..."
-                    : !isRegistrationOpen()
-                    ? "Registration Closed"
-                    : isFree()
-                    ? "Register Now"
-                    : `Register - ₹${event.price}`}
-                </button>
-                <div className={styles.registrationInfo}>
-                  <p className={styles.deadline}>
-                    Registration Deadline:{" "}
-                    {formatDate(event.registeration_deadline)}
-                  </p>
-                  {event.max_attendees && (
-                    <p className={styles.availability}>
-                      {event.max_attendees - (event.attendees?.length || 0)}{" "}
-                      spots remaining
-                    </p>
-                  )}
-                </div>
+            <div className={styles.eventCard}>
+              <div className={styles.dateTimeSection}>
+                <h3 className={styles.sectionTitle}>Event Dates :</h3>
+                <p className={styles.eventDate}>
+                  <strong>
+                    {event.start_date && event.end_date
+                      ? `${formatDate(event.start_date)} to ${formatDate(event.end_date)}`
+                      : formatDate(event.start_date)}
+                  </strong>
+                </p>
+                <p className={styles.regDeadline}>
+                  <span style={{ fontWeight: 500 }}>Registration Deadline:</span>{" "}
+                  {formatDate(event.registeration_deadline)}
+                </p>
               </div>
-            </div>
-
-            <div className={styles.tagsSection}>
-              <h3 className={styles.sectionTitle}>Tags</h3>
-              <div className={styles.tags}>
-                <span className={styles.tag}>{event.mode} event</span>
-                <span className={styles.tag}>{isFree() ? "Free" : "Paid"}</span>
-                <span className={styles.tag}>
-                  {organisation?.name?.toLowerCase() || "event"}
-                </span>
+              <button
+                className={styles.bookNowBtn}
+                onClick={handleRegistration}
+                disabled={!isRegistrationOpen() || isRegistering}
+              >
+                {isRegistering
+                  ? "Registering..."
+                  : !isRegistrationOpen()
+                  ? "Registration Closed"
+                  : isFree()
+                  ? "Register Now"
+                  : `Register - ₹${event.price}`}
+              </button>
+              <div className={styles.registrationInfo}>
+                {event.max_attendees && (
+                  <p className={styles.availability}>
+                    {event.max_attendees - (event.attendees?.length || 0)}{" "}
+                    spots remaining
+                  </p>
+                )}
               </div>
             </div>
 

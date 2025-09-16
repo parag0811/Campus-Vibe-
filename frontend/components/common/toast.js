@@ -41,30 +41,30 @@ const Toast = ({ id, message, type, onRemove }) => {
       case "success":
         return {
           ...baseStyles,
-          background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+          background: "linear-gradient(135deg, #22d3ee 0%, #7c3aed 100%)", // teal to theme purple
           color: "white",
-          border: "1px solid #059669",
+          border: "1px solid #7c3aed",
         };
       case "error":
         return {
           ...baseStyles,
-          background: "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",
+          background: "linear-gradient(135deg, #ef4444 0%, #7c3aed 100%)", // red to theme purple
           color: "white",
-          border: "1px solid #dc2626",
+          border: "1px solid #7c3aed",
         };
       case "info":
         return {
           ...baseStyles,
-          background: "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)",
+          background: "linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%)", // theme purple gradient
           color: "white",
-          border: "1px solid #2563eb",
+          border: "1px solid #7c3aed",
         };
       default:
         return {
           ...baseStyles,
-          background: "linear-gradient(135deg, #6b7280 0%, #4b5563 100%)",
-          color: "white",
-          border: "1px solid #4b5563",
+          background: "linear-gradient(135deg, #ede9fe 0%, #7c3aed 100%)", // light to theme purple
+          color: "#4b006e",
+          border: "1px solid #7c3aed",
         };
     }
   };

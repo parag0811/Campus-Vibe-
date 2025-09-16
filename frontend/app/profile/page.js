@@ -1,9 +1,11 @@
 "use client";
 import styles from "./profile.module.css";
 import { useState, useEffect } from "react";
+import { useToast } from "@/components/common/toast";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
+// Validation matching backend (see user-route.js)
 function validateProfile(formData) {
   const errors = {};
 
@@ -50,6 +52,7 @@ function validateProfile(formData) {
 }
 
 const UserProfileForm = () => {
+  const { toast } = useToast();
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -57,13 +60,13 @@ const UserProfileForm = () => {
     college_name: "",
     college_id: "",
   });
-  const [role, setRole] = useState(""); // display only
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
 
   useEffect(() => {
     fetchUserProfile();
+    // eslint-disable-next-line
   }, []);
 
   const fetchUserProfile = async () => {
@@ -80,7 +83,6 @@ const UserProfileForm = () => {
         throw new Error(json.message || "Failed to fetch user profile");
       }
 
-
       const user = json.data || {};
       setFormData({
         name: user.name || "",
@@ -89,9 +91,8 @@ const UserProfileForm = () => {
         college_name: user.college_name || "",
         college_id: user.college_id || "",
       });
-      setRole(user.role || "");
     } catch (err) {
-      setErrors({ general: err.message || "Could not load profile" });
+      toast.error(err.message || "Could not load profile");
     } finally {
       setIsLoading(false);
     }
@@ -128,8 +129,6 @@ const UserProfileForm = () => {
         ...formData,
         age: formData.age, // keep as string for backend
       };
-      // Debug log
-      // console.log("Submitting profile data to backend:", submitData);
 
       const response = await fetch(`${API_URL}/auth/update-user-profile`, {
         method: "PUT",
@@ -140,7 +139,7 @@ const UserProfileForm = () => {
       const data = await response.json();
 
       if (response.ok && data.success) {
-        alert("Profile updated successfully!");
+        toast.success("Profile updated successfully!");
         setErrors({});
         fetchUserProfile();
       } else {
@@ -151,14 +150,17 @@ const UserProfileForm = () => {
             backendErrors[error.param] = error.msg;
           });
           setErrors(backendErrors);
+          // Show only the first backend error as toast
+          const firstError = data.data[0]?.msg;
+          if (firstError) toast.error(firstError);
         } else if (data.message) {
-          setErrors({ general: data.message });
+          toast.error(data.message);
         } else {
-          setErrors({ general: "Failed to update profile" });
+          toast.error("Failed to update profile");
         }
       }
     } catch (error) {
-      setErrors({ general: "Failed to update profile. Please try again." });
+      toast.error("Failed to update profile. Please try again.");
     } finally {
       setIsUpdating(false);
     }
@@ -186,8 +188,6 @@ const UserProfileForm = () => {
             Manage your name and account settings.
           </p>
         </div>
-
-        
 
         <form onSubmit={handleSubmit} className={styles.form}>
           {/* Name */}
@@ -295,24 +295,6 @@ const UserProfileForm = () => {
               <span className={styles.error}>{errors.college_id}</span>
             )}
           </div>
-
-          {/* Role (display only) */}
-          {role && (
-            <div className={styles.formGroup}>
-              <label className={styles.label}>Role</label>
-              <input
-                type="text"
-                value={role}
-                disabled
-                className={styles.input}
-                style={{ background: "#f2f2f2" }}
-              />
-            </div>
-          )}
-
-          {errors.general && (
-          <div className={styles.generalError}>{errors.general}</div>
-        )}
 
           {/* Action Buttons */}
           <div className={styles.buttonGroup}>

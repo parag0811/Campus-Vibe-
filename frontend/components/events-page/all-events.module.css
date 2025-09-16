@@ -184,6 +184,16 @@
   font-weight: bold;
 }
 
+.noEventsMessage {
+  font-family: "'Inter', sans-serif";
+  color: black;
+  font-weight: 600;
+  font-size: 22px;
+  letter-spacing: "0.01em";
+  display: "block";
+  margin-bottom: "0.5rem";
+}
+
 /* Media queries for responsiveness */
 @media (min-width: 640px) {
   .eventsGrid {

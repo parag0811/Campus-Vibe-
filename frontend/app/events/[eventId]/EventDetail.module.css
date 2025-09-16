@@ -221,6 +221,26 @@
 
 .dateTimeSection {
   margin-bottom: 1.5rem;
+  background: #f5f3ff;
+  border-radius: 0.75rem;
+  padding: 1.25rem 1rem;
+  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.06);
+}
+
+.eventDate {
+  color: black;
+  font-size: 1.1rem;
+  font-weight: 300;
+  margin-bottom: 0.5rem;
+  font-family: 'Inter', sans-serif;
+}
+
+.regDeadline {
+  color: #6d28d9;
+  font-size: 1rem;
+  font-weight: 500;
+  font-family: 'Inter', sans-serif;
+  margin-bottom: 0.5rem;
 }
 
 .endTime {

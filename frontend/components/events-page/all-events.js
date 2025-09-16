@@ -2,28 +2,29 @@
 import { useState, useEffect } from "react";
 import styles from "./all-events.module.css";
 import { useRouter } from "next/navigation";
-import eventcard from "@/assets/eventcard.png";
+import { useToast } from "@/components/common/toast";
 
-const EventCard = ({ id, image, title, location, date, time, type }) => {
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+
+const EventCard = ({ id, image, title, date, time, type }) => {
   const router = useRouter();
 
   const handleClick = () => {
     router.push(`/events/${id}`);
-  };  
+  };
 
   return (
     <div className={styles.cardWrapper} onClick={handleClick}>
       <div className={styles.card}>
         <div className={styles.imageContainer}>
           <img src={image} alt={title} className={styles.image} />
-          {/* <span className={styles.freeTag}>FREE</span> */}
         </div>
         <div className={styles.cardContent}>
           <h3 className={styles.eventTitle}>{title}</h3>
           <p className={styles.eventDate}>
             {date}, {time}
           </p>
-          <p className={styles.eventType}>{type} - Attend anywhere</p>
+          <p className={styles.eventType}>{type ? `${type} - Attend anywhere` : "Attend anywhere"}</p>
         </div>
       </div>
     </div>
@@ -31,58 +32,44 @@ const EventCard = ({ id, image, title, location, date, time, type }) => {
 };
 
 export default function AllEvents() {
+  const { toast } = useToast();
   const [events, setEvents] = useState([]);
   const [visibleEvents, setVisibleEvents] = useState(9);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  const [selectedDate, setSelectedDate] = useState("");
-  const [selectedEventType, setSelectedEventType] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("");
+  const [noEventsMessage, setNoEventsMessage] = useState("");
 
   useEffect(() => {
     const fetchEvents = async () => {
       try {
-        const response = await fetch("http://localhost:5000/events"); // Replace with full URL in production
+        setNoEventsMessage("");
+        const response = await fetch(`${API_BASE}/events`);
+        const data = await response.json();
+
         if (!response.ok) {
-          throw new Error("Failed to fetch events");
+          // If backend says "no events", show that message in UI, not as toast
+          if (response.status === 404 && data.message) {
+            setEvents([]);
+            setNoEventsMessage(data.message);
+            return;
+          }
+          // For other errors, show toast
+          throw new Error(data.message || "Unable to load events. Please try again later.");
         }
 
-        const data = await response.json();
-        console.log(data.events);
         setEvents(data.events || []);
       } catch (err) {
-        setError(err.message || "Something went wrong");
-      } finally {
-        setLoading(false);
+        setNoEventsMessage("");
+        toast.error(err.message || "Unable to load events. Please try again later.");
       }
     };
 
     fetchEvents();
+    // Only run once on mount
+    // eslint-disable-next-line
   }, []);
 
   const loadMore = () => {
     setVisibleEvents((prevVisible) => prevVisible + 6);
   };
-
-  // Filter events based on selected filters
-  const filteredEvents = events.filter((event) => {
-    let matchesFilters = true;
-
-    if (selectedDate && !event.date.includes(selectedDate)) {
-      matchesFilters = false;
-    }
-
-    if (selectedEventType && event.type !== selectedEventType) {
-      matchesFilters = false;
-    }
-
-    if (selectedCategory && event.category !== selectedCategory) {
-      matchesFilters = false;
-    }
-
-    return matchesFilters;
-  });
 
   return (
     <div className={styles.container}>
@@ -90,63 +77,24 @@ export default function AllEvents() {
         <h2 className={styles.title}>
           Events <span className={styles.purple}>around you</span>
         </h2>
-
-        <div className={styles.filterContainer}>
-          {/* Date Filter Dropdown */}
-          <div className={styles.filterDropdown}>
-            <select
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className={styles.filterSelect}
-            >
-              <option value="">Date/Days</option>
-              <option value="Saturday">Saturday</option>
-              <option value="Sunday">Sunday</option>
-              <option value="Monday">Monday</option>
-              <option value="Tuesday">Tuesday</option>
-              <option value="Wednesday">Wednesday</option>
-              <option value="Thursday">Thursday</option>
-              <option value="Friday">Friday</option>
-            </select>
-          </div>
-
-          {/* Event Type Filter Dropdown */}
-          <div className={styles.filterDropdown}>
-            <select
-              value={selectedEventType}
-              onChange={(e) => setSelectedEventType(e.target.value)}
-              className={styles.filterSelect}
-            >
-              <option value="">Event type</option>
-              <option value="ONLINE EVENT">Online Event</option>
-              <option value="IN-PERSON EVENT">In-Person Event</option>
-            </select>
-          </div>
-
-          {/* Category Filter Dropdown */}
-          <div className={styles.filterDropdown}>
-            <select
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              className={styles.filterSelect}
-            >
-              <option value="">Any category</option>
-              <option value="Music">Music</option>
-              <option value="Art">Art</option>
-              <option value="Sports">Sports</option>
-              <option value="Food">Food</option>
-              <option value="Tech">Tech</option>
-            </select>
-          </div>
-        </div>
       </div>
 
       <div className={styles.eventsGrid}>
-        {filteredEvents.slice(0, visibleEvents).map((event) => (
+        {noEventsMessage && (
+          <div className={styles.noEventsMessage}>
+            {noEventsMessage}
+          </div>
+        )}
+        {events.length === 0 && !noEventsMessage && (
+          <div className={styles.noEventsMessage}>
+            No events found.
+          </div>
+        )}
+        {events.slice(0, visibleEvents).map((event) => (
           <EventCard
             id={event._id}
             key={event._id}
-            // image={event.image.src || eventcard.src}
+            image={event.image}
             title={event.title}
             location={event.location}
             date={event.date}
@@ -156,16 +104,17 @@ export default function AllEvents() {
         ))}
       </div>
 
-      <div className={styles.paginationContainer}>
-        <button className={`${styles.paginationButton} ${styles.activePage}`}>
-          1
-        </button>
-        <button className={styles.paginationButton}>2</button>
-        <button className={styles.paginationButton}>3</button>
-        <button className={styles.paginationButton}>
-          <span className={styles.morePages}>...</span>
-        </button>
-      </div>
+      {/* Pagination or Load More */}
+      {events.length > visibleEvents && (
+        <div className={styles.paginationContainer}>
+          <button
+            className={styles.paginationButton}
+            onClick={loadMore}
+          >
+            Load More
+          </button>
+        </div>
+      )}
     </div>
   );
 }

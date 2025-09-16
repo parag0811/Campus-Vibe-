@@ -2,33 +2,60 @@
 import { useState } from "react";
 import styles from "./register-panel.module.css";
 import { useRouter } from "next/navigation";
+import { useToast } from "@/components/common/toast";
 
 export default function RegisterPanel() {
   const router = useRouter();
+  const { toast } = useToast();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState([]);
 
-  // Utility to parse backend errors
-  function parseErrorResponse(err) {
-    if (!err) return { message: "Unknown error", fieldErrors: [] };
-    if (typeof err === "string") return { message: err, fieldErrors: [] };
-    if (err.error) return { message: err.error, fieldErrors: [] };
-    if (err.message && err.data)
-      return { message: err.message, fieldErrors: err.data };
-    if (err.message) return { message: err.message, fieldErrors: [] };
-    return { message: "Unknown error", fieldErrors: [] };
-  }
+  // Frontend validation matching backend
+  const validate = () => {
+    const errors = [];
+
+    // Email
+    if (!email) {
+      errors.push({ path: "email", msg: "E-mail must not be an empty field." });
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      errors.push({ path: "email", msg: "E-mail must be valid." });
+    }
+
+    // Password
+    if (!password) {
+      errors.push({ path: "password", msg: "Password cannot be an empty field." });
+    } else if (password.length < 8 || password.length > 18) {
+      errors.push({ path: "password", msg: "Password must be 8-18 characters long." });
+    } else if (!/[A-Z]/.test(password)) {
+      errors.push({ path: "password", msg: "Password must contain at least one uppercase character." });
+    } else if (!/[0-9]/.test(password)) {
+      errors.push({ path: "password", msg: "Password must contain at least one number." });
+    }
+
+    // Confirm Password
+    if (confirmPassword !== password) {
+      errors.push({ path: "confirmPassword", msg: "Passwords do not match." });
+    }
+
+    return errors;
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
-    setError("");
     setFieldErrors([]);
+    setLoading(true);
+
+    // Frontend validation
+    const frontendErrors = validate();
+    if (frontendErrors.length > 0) {
+      setFieldErrors(frontendErrors);
+      setLoading(false);
+      return;
+    }
 
     const baseUrl = process.env.NEXT_PUBLIC_API_URL;
     try {
@@ -41,10 +68,10 @@ export default function RegisterPanel() {
       const data = await res.json();
 
       if (!res.ok) {
-        // Express-validator errors come in data: [{ msg, path }]
+        // Backend validation errors
         const { message, data: validationErrors } = data;
-        setError(message || "Registration failed.");
         setFieldErrors(Array.isArray(validationErrors) ? validationErrors : []);
+        toast.error(message || "Registration failed.");
         setLoading(false);
         return;
       }
@@ -52,10 +79,10 @@ export default function RegisterPanel() {
       setEmail("");
       setPassword("");
       setConfirmPassword("");
-      alert(data.message || "Registered successfully.");
+      toast.success(data.message || "Registered successfully.");
       router.push("/login");
     } catch (err) {
-      setError("Something went wrong. Try again later.");
+      toast.error("Something went wrong. Try again later.");
     } finally {
       setLoading(false);
     }
@@ -70,7 +97,7 @@ export default function RegisterPanel() {
 
         <h2 className={styles.title}>Sign Up to Campus Vibe</h2>
 
-        <form onSubmit={handleSubmit} className={styles.signUpForm}>
+        <form onSubmit={handleSubmit} className={styles.signUpForm} autoComplete="off">
           <div className={styles.formGroup}>
             <label htmlFor="email" className={styles.label}>
               YOUR EMAIL
@@ -83,16 +110,14 @@ export default function RegisterPanel() {
               onChange={(e) => setEmail(e.target.value)}
               className={styles.input}
               required
+              autoComplete="email"
             />
+            {Array.isArray(fieldErrors) && fieldErrors.find((err) => err.path === "email") && (
+              <div style={{ color: "#ef4444", marginTop: 4 }}>
+                {fieldErrors.find((err) => err.path === "email").msg}
+              </div>
+            )}
           </div>
-          {Array.isArray(fieldErrors) && (
-            <p style={{ color: "red", textAlign: "center" }}>
-              {fieldErrors
-                .filter((err) => err.path === "email")
-                .map((err, idx) => `• ${err.msg}`)
-                .join(" ")}
-            </p>
-          )}
 
           <div className={styles.formGroup}>
             <label htmlFor="password" className={styles.label}>
@@ -106,16 +131,14 @@ export default function RegisterPanel() {
               onChange={(e) => setPassword(e.target.value)}
               className={styles.input}
               required
+              autoComplete="new-password"
             />
+            {Array.isArray(fieldErrors) && fieldErrors.find((err) => err.path === "password") && (
+              <div style={{ color: "#ef4444", marginTop: 4 }}>
+                {fieldErrors.find((err) => err.path === "password").msg}
+              </div>
+            )}
           </div>
-          {Array.isArray(fieldErrors) && (
-            <p style={{ color: "red", textAlign: "center" }}>
-              {fieldErrors
-                .filter((err) => err.path === "password")
-                .map((err, idx) => `• ${err.msg}`)
-                .join(" ")}
-            </p>
-          )}
 
           <div className={styles.formGroup}>
             <label htmlFor="confirmPassword" className={styles.label}>
@@ -129,16 +152,14 @@ export default function RegisterPanel() {
               onChange={(e) => setConfirmPassword(e.target.value)}
               className={styles.input}
               required
+              autoComplete="new-password"
             />
+            {Array.isArray(fieldErrors) && fieldErrors.find((err) => err.path === "confirmPassword") && (
+              <div style={{ color: "#ef4444", marginTop: 4 }}>
+                {fieldErrors.find((err) => err.path === "confirmPassword").msg}
+              </div>
+            )}
           </div>
-          {Array.isArray(fieldErrors) && (
-            <p style={{ color: "red", textAlign: "center" }}>
-              {fieldErrors
-                .filter((err) => err.path === "confirmPassword")
-                .map((err, idx) => `• ${err.msg}`)
-                .join(" ")}
-            </p>
-          )}
 
           <button
             type="submit"
@@ -147,10 +168,6 @@ export default function RegisterPanel() {
           >
             {loading ? "Signing up..." : "Sign Up"}
           </button>
-
-          {error ? (
-            <p style={{ color: "red", textAlign: "center" }}>{error}</p>
-          ) : null}
 
           <div className={styles.divider}>
             <span>Or</span>

@@ -24,7 +24,6 @@ exports.getEvents = async (req, res, next) => {
 exports.getEventDetail = async (req, res, next) => {
   try {
     const eventId  = req.params.eventId;
-    console.log(eventId)
     const event = await Event.findById(eventId);
 
     if (!event) {
