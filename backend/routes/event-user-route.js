@@ -15,6 +15,19 @@ router.post(
   event_controller.eventRegistration
 );
 
-router.get("/registered-events", isAuth, event_controller.registeredEvents);
+// User's own events (upcoming / past)
+router.get("/my-events", isAuth, event_controller.getMyEvents);
+
+// Cancel a registration
+router.delete("/cancel/:eventId", isAuth, event_controller.cancelRegistration);
+
+// Search & filters
+router.get("/search", event_controller.getEventsFiltered);
+
+// Organisation public page
+router.get("/org/:orgId", event_controller.getEventsByOrganisation);
+
+// Trending / popular events
+router.get("/trending", event_controller.getTrendingEvents);
 
 module.exports = router;
