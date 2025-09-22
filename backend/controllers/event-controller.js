@@ -4,6 +4,9 @@ dotenv.config();
 const Event = require("../models/event.js");
 const EventAnalytics = require("../models/event-analytics.js");
 const User = require("../models/user.js");
+const { GetObjectCommand } = require("@aws-sdk/client-s3");
+const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
+const s3 = require("../middleware/s3Client.js");
 
 exports.getEvents = async (req, res, next) => {
   try {
@@ -14,6 +17,19 @@ exports.getEvents = async (req, res, next) => {
         message: "No events are currently happening.",
       });
     }
+
+    // Attach signed URLs (5 min)
+    for (let ev of events) {
+      if (ev.posterImage) {
+        const command = new GetObjectCommand({
+          Bucket: process.env.BUCKET_NAME,
+          Key: ev.posterImage,
+        });
+        const signedUrl = await getSignedUrl(s3, command, { expiresIn: 60 * 5 });
+        ev.imageUrl = signedUrl;
+      }
+    }
+
     return res.status(200).json({ events });
   } catch (err) {
     if (!err.statusCode) {
@@ -34,7 +50,18 @@ exports.getEventDetail = async (req, res, next) => {
       throw error;
     }
 
-    return res.status(200).json({ event });
+    // Attach signed URL
+    const eventObj = event.toObject();
+    if (eventObj.posterImage) {
+      const command = new GetObjectCommand({
+        Bucket: process.env.BUCKET_NAME,
+        Key: eventObj.posterImage,
+      });
+      const signedUrl = await getSignedUrl(s3, command, { expiresIn: 60 * 5 });
+      eventObj.imageUrl = signedUrl;
+    }
+
+    return res.status(200).json({ event: eventObj });
   } catch (err) {
     if (!err.statusCode) {
       err.statusCode = 500;
@@ -126,6 +153,28 @@ exports.getMyEvents = async (req, res, next) => {
       }
     });
 
+    // Attach signed URLs
+    for (let ev of upcoming) {
+      if (ev.posterImage) {
+        const command = new GetObjectCommand({
+          Bucket: process.env.BUCKET_NAME,
+          Key: ev.posterImage,
+        });
+        const signedUrl = await getSignedUrl(s3, command, { expiresIn: 60 * 5 });
+        ev.imageUrl = signedUrl;
+      }
+    }
+    for (let ev of past) {
+      if (ev.posterImage) {
+        const command = new GetObjectCommand({
+          Bucket: process.env.BUCKET_NAME,
+          Key: ev.posterImage,
+        });
+        const signedUrl = await getSignedUrl(s3, command, { expiresIn: 60 * 5 });
+        ev.imageUrl = signedUrl;
+      }
+    }
+
     return res.status(200).json({ success: true, data: { upcoming, past } });
   } catch (err) {
     if (!err.statusCode) err.statusCode = 500;
@@ -154,22 +203,17 @@ exports.cancelRegistration = async (req, res, next) => {
       return res.status(400).json({ success: false, message: "You are not registered for this event." });
     }
 
-    // remove attendee
     event.attendees = (event.attendees || []).filter(
       (a) => String(a) !== String(userId)
     );
     await event.save();
 
-    // update analytics if model exists (best-effort)
     try {
       const analytics = await EventAnalytics.findOne({ event: event._id });
       if (analytics) {
-        // decrement registerations (use model field name)
         if (typeof analytics.registerations === "number") {
           analytics.registerations = Math.max(0, analytics.registerations - 1);
         }
-
-        // try to remove the user from registered_Users by email (if available)
         const user = await User.findById(userId).lean();
         if (user && user.email && Array.isArray(analytics.registered_Users)) {
           analytics.registered_Users = analytics.registered_Users.filter(
@@ -179,7 +223,6 @@ exports.cancelRegistration = async (req, res, next) => {
         await analytics.save();
       }
     } catch (e) {
-      // swallow analytics errors so cancel still succeeds
       console.warn("Analytics update skipped:", e.message || e);
     }
 
@@ -190,16 +233,6 @@ exports.cancelRegistration = async (req, res, next) => {
   }
 };
 
-/**
- * GET /events/search
- * Query params:
- *  - q: search term (title / description)
- *  - free: "true" | "false"  (free events only when true)
- *  - mode: "online" | "in-person" (matches event.mode)
- *  - upcoming: "true" | "false" (events with end_date >= now when true)
- *  - page, limit: pagination
- *  - sort: "newest" | "popular" (default newest)
- */
 exports.getEventsFiltered = async (req, res, next) => {
   try {
     const {
@@ -214,30 +247,25 @@ exports.getEventsFiltered = async (req, res, next) => {
 
     const query = {};
 
-    // search
     if (q && typeof q === "string") {
       const regex = new RegExp(q.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
       query.$or = [{ title: regex }, { description: regex }, { location: regex }];
     }
 
-    // free / paid
     if (free === "true") {
       query.price = 0;
     } else if (free === "false") {
       query.price = { $gt: 0 };
     }
 
-    // mode
     if (mode && typeof mode === "string") {
       query.mode = new RegExp(`^${mode}$`, "i");
     }
 
-    // upcoming / past
     if (typeof upcoming !== "undefined") {
       const now = new Date();
       if (upcoming === "true") {
         query.$or = query.$or || [];
-        // use end_date if present else start_date
         query.$or.push({ end_date: { $gte: now } }, { end_date: { $exists: false }, start_date: { $gte: now } });
       } else if (upcoming === "false") {
         const now2 = new Date();
@@ -252,26 +280,21 @@ exports.getEventsFiltered = async (req, res, next) => {
     const lim = Math.max(1, Math.min(100, parseInt(limit, 10) || 20));
     const skip = (pageNum - 1) * lim;
 
-    // sort
     let sortObj = { createdAt: -1 };
     if (sort === "popular") {
-      // prefer analytics.registerations, fallback to attendees length
       sortObj = { "analytics.registerations": -1, attendeesCount: -1, createdAt: -1 };
     } else if (sort === "newest") {
       sortObj = { createdAt: -1 };
     }
 
-    // pipeline to include attendeesCount and analytics (if available)
     const pipeline = [{ $match: query }];
 
-    // add attendees count
     pipeline.push({
       $addFields: {
         attendeesCount: { $size: { $ifNull: ["$attendees", []] } },
       },
     });
 
-    // left-join analytics
     pipeline.push({
       $lookup: {
         from: "eventanalytics",
@@ -287,21 +310,30 @@ exports.getEventsFiltered = async (req, res, next) => {
       },
     });
 
-    // projection
     pipeline.push({
       $project: {
         analyticsData: 0,
       },
     });
 
-    // sort, skip, limit
     pipeline.push({ $sort: sortObj });
     pipeline.push({ $skip: skip });
     pipeline.push({ $limit: lim });
 
     const events = await Event.aggregate(pipeline).allowDiskUse(true);
 
-    // total count (separate faster countDocuments)
+    // Attach signed URLs
+    for (let ev of events) {
+      if (ev.posterImage) {
+        const command = new GetObjectCommand({
+          Bucket: process.env.BUCKET_NAME,
+          Key: ev.posterImage,
+        });
+        const signedUrl = await getSignedUrl(s3, command, { expiresIn: 60 * 5 });
+        ev.imageUrl = signedUrl;
+      }
+    }
+
     const total = await Event.countDocuments(query);
 
     return res.status(200).json({ success: true, data: { events, total, page: pageNum, limit: lim } });
@@ -342,6 +374,18 @@ exports.getEventsByOrganisation = async (req, res, next) => {
       .limit(lim)
       .lean();
 
+    // Attach signed URLs
+    for (let ev of events) {
+      if (ev.posterImage) {
+        const command = new GetObjectCommand({
+          Bucket: process.env.BUCKET_NAME,
+          Key: ev.posterImage,
+        });
+        const signedUrl = await getSignedUrl(s3, command, { expiresIn: 60 * 5 });
+        ev.imageUrl = signedUrl;
+      }
+    }
+
     const total = await Event.countDocuments(query);
 
     return res.status(200).json({ success: true, data: { events, total, page: pageNum, limit: lim } });
@@ -356,8 +400,6 @@ exports.getTrendingEvents = async (req, res, next) => {
     const { limit = 6 } = req.query;
     const lim = Math.max(1, Math.min(50, parseInt(limit, 10) || 6));
 
-    // Prefer analytics.registerations desc, fall back to attendees count on Event
-    // Use aggregation to join analytics and attendees count
     const pipeline = [
       {
         $addFields: {
@@ -394,6 +436,18 @@ exports.getTrendingEvents = async (req, res, next) => {
     ];
 
     const events = await Event.aggregate(pipeline).allowDiskUse(true);
+
+    // Attach signed URLs
+    for (let ev of events) {
+      if (ev.posterImage) {
+        const command = new GetObjectCommand({
+          Bucket: process.env.BUCKET_NAME,
+          Key: ev.posterImage,
+        });
+        const signedUrl = await getSignedUrl(s3, command, { expiresIn: 60 * 5 });
+        ev.imageUrl = signedUrl;
+      }
+    }
 
     return res.status(200).json({ success: true, data: { events } });
   } catch (err) {

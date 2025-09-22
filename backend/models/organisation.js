@@ -16,17 +16,17 @@ const organisationSchema = new Schema(
     },
     imageName: { type: String, required: true, unique: true },
 
-    // Razorpay Connect (direct payouts to org)
-    razorpayAccountId: { type: String, index: true }, // e.g., acc_XXXX
+    // Platform collects now; org payout later (keep fields future-ready)
+    razorpayAccountId: { type: String, index: true }, // optional, for future settlements
     payoutPreferences: {
-      platformFeePercent: {
-        type: Number,
-        default: 5,
-        min: 0,
-        max: 25, // keep sane bounds
-      },
+      platformFeePercent: { type: Number, default: 5, min: 0, max: 25 },
       minPayoutAmount: { type: Number, default: 0, min: 0 },
+      settlementMode: { type: String, enum: ["manual", "auto"], default: "manual" },
     },
+
+    // Aggregates for dashboards/settlements (in paise)
+    pendingPayoutBalance: { type: Number, default: 0, min: 0 }, // accrued orgShare not yet paid
+    totalEarnings: { type: Number, default: 0, min: 0 },        // lifetime orgShare
   },
   { timestamps: true, versionKey: false }
 );
