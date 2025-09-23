@@ -12,6 +12,7 @@ const userRoute = require("./routes/user-route.js");
 const orgRoute = require("./routes/organisation-route.js");
 const orgAdminOwnerRoute = require("./routes/organisation-admin-owner-route.js");
 const eventUserRoute = require("./routes/event-user-route.js");
+const paymentRoutes = require("./routes/payment-route.js");
 const checkProfileCompleted = require("./middleware/completeProfile.js");
 const isAuth = require("./middleware/is-auth.js");
 
@@ -48,6 +49,7 @@ app.use("/auth", userRoute);
 app.use(orgRoute);
 app.use(orgAdminOwnerRoute);
 app.use(eventUserRoute);
+app.use(paymentRoutes)
 
 app.use((error, req, res, next) => {
   const status = error.statusCode || 500;
