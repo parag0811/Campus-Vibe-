@@ -17,7 +17,7 @@ const organisationSchema = new Schema(
     imageName: { type: String, required: true, unique: true },
 
     // Platform collects now; org payout later (keep fields future-ready)
-    razorpayAccountId: { type: String, index: true }, // optional, for future settlements
+    razorpayAccountId: { type: String, index: true }, // for future settlements
     payoutPreferences: {
       platformFeePercent: { type: Number, default: 5, min: 0, max: 25 },
       minPayoutAmount: { type: Number, default: 0, min: 0 },
