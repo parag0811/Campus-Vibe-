@@ -49,8 +49,8 @@ exports.createOrder = async (req, res, next) => {
     const platformFee = Math.floor((amountPaise * feePercent) / 100);
     const orgShare = Math.max(0, amountPaise - platformFee);
 
-   const bookingId = "CV-" + crypto.randomBytes(8).toString("hex").toUpperCase();
-
+    const bookingId =
+      "CV-" + crypto.randomBytes(8).toString("hex").toUpperCase();
 
     const options = {
       amount: Number(req.body.price * 100),
@@ -62,7 +62,7 @@ exports.createOrder = async (req, res, next) => {
     const order = await razorpay.orders.create(options); // Making order out of the data
 
     await Payment.create({
-      provider: "razorpay",
+      provider: "razorpay",    
       orderId: order.id,
       paymentId: null,
       receipt: bookingId,
@@ -89,6 +89,115 @@ exports.createOrder = async (req, res, next) => {
     if (!err.statusCode) {
       err.statusCode = 500;
     }
+    next(err);
+  }
+};
+
+
+exports.verifyPayment = async (req, res, next) => {
+  try {
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+    const userId = req.userId;
+
+    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+      return res.status(400).json({ success: false, message: "Missing Razorpay verification fields" });
+    }
+
+    const body = `${razorpay_order_id}|${razorpay_payment_id}`;
+    const expectedSignature = crypto
+      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+      .update(body)
+      .digest("hex");
+
+    if (expectedSignature !== razorpay_signature) {
+      return res.status(400).json({ success: false, message: "Invalid payment signature" });
+    }
+
+    // Fetch payment from Razorpay to confirm capture
+    const rpPayment = await razorpay.payments.fetch(razorpay_payment_id);
+    if (!rpPayment || rpPayment.order_id !== razorpay_order_id) {
+      return res.status(400).json({ success: false, message: "Payment mismatch" });
+    }
+    if (rpPayment.status !== "captured") {
+      return res.status(400).json({ success: false, message: `Payment not captured (${rpPayment.status})` });
+    }
+
+    const payment = await Payment.findOne({ orderId: razorpay_order_id });
+    if (!payment) {
+      return res.status(404).json({ success: false, message: "Payment record not found" });
+    }
+    if (String(payment.user) !== String(userId)) {
+      return res.status(403).json({ success: false, message: "Payment does not belong to this user" });
+    }
+    if (payment.status === "paid") {
+      // Idempotent success
+      const existingTicket = await Ticket.findOne({ bookingId: payment.receipt }).lean();
+      return res.status(200).json({
+        success: true,
+        bookingId: payment.receipt,
+        ticketId: existingTicket?._id,
+      });
+    }
+
+    payment.paymentId = razorpay_payment_id;
+    payment.status = "paid";
+    payment.method = rpPayment.method;
+    payment.email = rpPayment.email;
+    payment.contact = rpPayment.contact;
+    await payment.save();
+
+    // Create ticket :--- bookingId is now a receipt
+    let ticket = await Ticket.findOne({ bookingId: payment.receipt });
+    if (!ticket) {
+      ticket = await Ticket.create({
+        bookingId: payment.receipt,
+        user: payment.user,
+        event: payment.event,
+        payment: payment._id,
+        status: "active",
+      });
+    }
+
+    // Mark user as attendee for the event
+    const ev = await Event.findById(payment.event);
+    if (ev) {
+      const exists = (ev.attendees || []).some((a) => String(a) === String(userId));
+      if (!exists) {
+        ev.attendees = ev.attendees || [];
+        ev.attendees.push(userId);
+        await ev.save();
+      }
+    }
+
+    // Update organisation balances
+    await Organisation.findByIdAndUpdate(payment.organisation, {
+      $inc: {
+        pendingPayoutBalance: payment.orgShare,
+        totalEarnings: payment.orgShare,
+      },
+    });
+
+    // analytics
+    try {
+      const analytics = await EventAnalytics.findOne({ event: payment.event });
+      if (analytics) {
+        if (typeof analytics.registerations === "number") {
+          analytics.registerations += 1;
+        }
+        if (Array.isArray(analytics.registered_Users) && payment.email) {
+          analytics.registered_Users.push({ email: payment.email });
+        }
+        await analytics.save();
+      }
+    } catch (_) {}
+
+    return res.status(200).json({
+      success: true,
+      bookingId: payment.receipt,
+      ticketId: ticket._id,
+    });
+  } catch (err) {
+    if (!err.statusCode) err.statusCode = 500;
     next(err);
   }
 };
