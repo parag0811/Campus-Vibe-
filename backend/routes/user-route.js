@@ -38,6 +38,31 @@ const profileValidate = [
     .escape(),
 ];
 
+// Reuse a small validator for email, and for OTP verify
+const emailOnly = [
+  body("email")
+    .notEmpty()
+    .withMessage("E-mail must not be empty.")
+    .bail()
+    .isEmail()
+    .withMessage("E-mail must be valid.")
+    .bail()
+    .trim()
+    .toLowerCase()
+    .normalizeEmail(),
+];
+
+const emailAndOtp = [
+  ...emailOnly,
+  body("otp")
+    .notEmpty()
+    .withMessage("OTP is required.")
+    .bail()
+    .isLength({ min: 6, max: 6 })
+    .withMessage("OTP must be 6 digits.")
+    .trim(),
+];
+
 router.post(
   "/register-new-user",
   [
@@ -111,4 +136,22 @@ router.post(
 router.get("/check-login", isAuth, user_controller.checkLogin);
 
 router.post("/logout", user_controller.logoutCheck);
+
+// OTP routes: send, resend, verify
+router.post(
+  "/send-email-otp",
+  emailOnly,
+  user_controller.sendVerificationOTP
+);
+router.post(
+  "/resend-email-otp",
+  emailOnly,
+  user_controller.resendVerificationOTP
+);
+router.post(
+  "/verify-email-otp",
+  emailAndOtp,
+  user_controller.verifyOTP
+);
+
 module.exports = router;

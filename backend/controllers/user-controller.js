@@ -8,6 +8,7 @@ const sendEmail = require("../utils/mailSender.js");
 
 const User = require("../models/user.js");
 
+// Register: create user only; do NOT send OTP here
 exports.registerUser = async (req, res, next) => {
   try {
     const errors = validationResult(req);
@@ -17,16 +18,10 @@ exports.registerUser = async (req, res, next) => {
       error.data = errors.array();
       throw error;
     }
-    const email = req.body.email;
+
+    const email = (req.body.email || "").trim().toLowerCase();
     const password = req.body.password;
     const confirmPassword = req.body.confirmPassword;
-
-    const isUserExists = await User.findOne({ email: email });
-    if (isUserExists) {
-      const error = new Error("E-mail already exists.");
-      error.statusCode = 409;
-      throw error;
-    }
 
     if (confirmPassword !== password) {
       const error = new Error("Password must be same in both the field.");
@@ -34,20 +29,181 @@ exports.registerUser = async (req, res, next) => {
       throw error;
     }
 
-    const encryptedPassword = await bcrypt.hash(password, 12);
-    const user = new User({
-      email: email,
-      password: encryptedPassword,
-    });
-    await user.save();
-    return res
-      .status(201)
-      .json({ success: true, message: "Registered Successfully." });
-  } catch (err) {
-    if (!err.statusCode) {
-      err.statusCode = 500;
+    const existing = await User.findOne({ email });
+    if (existing) {
+      const error = new Error("E-mail already exists.");
+      error.statusCode = 409;
+      throw error;
     }
+
+    const encryptedPassword = await bcrypt.hash(password, 12);
+    await User.create({
+      email,
+      password: encryptedPassword,
+      isVerified: false,
+    });
+
+    return res.status(201).json({
+      success: true,
+      message:
+        "Registered successfully. Please request an OTP to verify your email.",
+      email,
+    });
+  } catch (err) {
+    if (!err.statusCode) err.statusCode = 500;
     next(err);
+  }
+};
+
+// Sending otp via node mailer.
+exports.sendVerificationOTP = async (req, res) => {
+  try {
+    const email = (req.body.email || "").trim().toLowerCase();
+    const user = email ? await User.findOne({ email }) : null;
+
+    if (!user) {
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found." });
+    }
+    if (user.isVerified) {
+      return res
+        .status(200)
+        .json({ success: true, message: "E-mail is already verified." });
+    }
+
+    const otp = String(crypto.randomInt(100000, 1000000));
+    const hashedOTP = await bcrypt.hash(otp, 10);
+
+    user.emailVerificationOTP = hashedOTP;
+    user.emailVerificationExpires = new Date(Date.now() + 15 * 60 * 1000);
+    await user.save();
+
+    await sendEmail(
+      email,
+      "OTP for Verification",
+      `Your Campus Vibe verification code is ${otp}. It expires in 15 minutes.`
+    );
+
+    return res.json({
+      success: true,
+      message: "Verification OTP sent to email.",
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// Resend OTP
+exports.resendVerificationOTP = async (req, res) => {
+  try {
+    const email = (req.body.email || "").trim().toLowerCase();
+    const user = email ? await User.findOne({ email }) : null;
+
+    if (!user) {
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found." });
+    }
+    if (user.isVerified) {
+      return res
+        .status(200)
+        .json({ success: true, message: "E-mail is already verified." });
+    }
+    const now = Date.now();
+    const lastSent = user.lastOtpSentAt
+      ? new Date(user.lastOtpSentAt).getTime()
+      : 0;
+    const cooldown = 60 * 1000; // 60 seconds
+    const diff = now - lastSent;
+    
+
+    if (diff < cooldown) {
+      const wait = Math.ceil((cooldown - diff) / 1000);
+      return res.status(429).json({
+        success: false,
+        message: `Please wait ${wait} seconds before resending OTP.`,
+      });
+    }
+
+    const otp = String(crypto.randomInt(100000, 1000000));
+    const hashedOTP = await bcrypt.hash(otp, 10);
+
+    user.emailVerificationOTP = hashedOTP;
+    user.emailVerificationExpires = new Date(Date.now() + 15 * 60 * 1000);
+        user.lastOtpSentAt = new Date(); 
+    await user.save();
+
+    await sendEmail(
+      email,
+      "OTP for Verification",
+      `Your new Campus Vibe verification code is ${otp}. It expires in 15 minutes.`
+    );
+
+    return res.json({ success: true, message: "OTP re-sent to email." });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+exports.verifyOTP = async (req, res) => {
+  try {
+    const email = (req.body.email || "").trim().toLowerCase();
+    const otp = String(req.body.otp || "").trim();
+
+    if (!otp) {
+      return res
+        .status(400)
+        .json({ success: false, message: "OTP cannot be empty." });
+    }
+
+    // Include hidden fields
+    const user = await User.findOne({ email }).select(
+      "+emailVerificationOTP +emailVerificationExpires"
+    );
+
+    if (!user) {
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
+    }
+    if (user.isVerified) {
+      return res
+        .status(200)
+        .json({ success: true, message: "E-mail already verified" });
+    }
+    if (!user.emailVerificationOTP || !user.emailVerificationExpires) {
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "OTP not requested or already used.",
+        });
+    }
+    if (Date.now() > new Date(user.emailVerificationExpires).getTime()) {
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "OTP expired. Please request a new one.",
+        });
+    }
+
+    const isMatch = await bcrypt.compare(otp, user.emailVerificationOTP);
+    if (!isMatch) {
+      return res.status(400).json({ success: false, message: "Invalid OTP." });
+    }
+
+    user.isVerified = true;
+    user.emailVerificationOTP = undefined;
+    user.emailVerificationExpires = undefined;
+    await user.save();
+
+    return res
+      .status(200)
+      .json({ success: true, message: "Email verified successfully." });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: "Server error" });
   }
 };
 
@@ -73,7 +229,7 @@ exports.loginUser = async (req, res, next) => {
       {
         userId: user._id.toString(),
         userRole: user.role,
-        profileCompleted : user.profileCompleted
+        profileCompleted: user.profileCompleted,
       },
       process.env.JWT_SECRET,
       {
