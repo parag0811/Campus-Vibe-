@@ -38,6 +38,17 @@ const profileValidate = [
     .escape(),
 ];
 
+// Update-profile: make fields optional so partial updates work
+const updateProfileValidate = [
+  body("name").optional().isLength({ max: 16 }).trim().escape(),
+  body("age").optional().isInt({ min: 13, max: 99 }),
+  body("email").optional().isEmail().trim().toLowerCase().normalizeEmail(),
+  body("college_name").optional().isLength({ max: 60 }).trim().escape(),
+  body("college_id").optional().isLength({ max: 24 }).trim().escape(),
+  body("college_department").optional().isLength({ max: 60 }).trim().escape(),
+  body("college_year").optional().isInt({ min: 1, max: 10 }),
+];
+
 // Reuse a small validator for email, and for OTP verify
 const emailOnly = [
   body("email")
@@ -89,11 +100,25 @@ router.post(
       .bail()
       .matches(/[0-9]/)
       .withMessage("Password must contain atleast one number."),
+    body("confirmPassword")
+      .notEmpty()
+      .withMessage("Confirm password is required.")
+      .bail()
+      .custom((v, { req }) => v === req.body.password)
+      .withMessage("Password must be same in both the field."),
   ],
   user_controller.registerUser
 );
 
-router.post("/login-user", user_controller.loginUser);
+// Login validators
+router.post(
+  "/login-user",
+  [
+    body("email").notEmpty().isEmail().trim().toLowerCase().normalizeEmail(),
+    body("password").notEmpty().isLength({ min: 8, max: 72 }),
+  ],
+  user_controller.loginUser
+);
 
 router.post(
   "/user-profile",
@@ -107,7 +132,7 @@ router.get("/update-user-profile", isAuth, user_controller.getProfile);
 router.put(
   "/update-user-profile",
   isAuth,
-  profileValidate,
+  updateProfileValidate,
   user_controller.updateProfile
 );
 
@@ -129,6 +154,12 @@ router.post(
       .bail()
       .matches(/[0-9]/)
       .withMessage("Password must contain atleast one number."),
+    body("confirmPassword")
+      .notEmpty()
+      .withMessage("Confirm password is required.")
+      .bail()
+      .custom((v, { req }) => v === req.body.password)
+      .withMessage("Password must be same in both the field."),
   ],
   user_controller.resetPassword
 );
@@ -137,7 +168,7 @@ router.get("/check-login", isAuth, user_controller.checkLogin);
 
 router.post("/logout", user_controller.logoutCheck);
 
-// OTP routes: send, resend, verify
+// OTP routes 
 router.post(
   "/send-email-otp",
   emailOnly,

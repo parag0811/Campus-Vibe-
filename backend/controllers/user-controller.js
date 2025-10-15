@@ -55,7 +55,6 @@ exports.registerUser = async (req, res, next) => {
   }
 };
 
-// Sending otp via node mailer.
 exports.sendVerificationOTP = async (req, res) => {
   try {
     const email = (req.body.email || "").trim().toLowerCase();
@@ -72,11 +71,28 @@ exports.sendVerificationOTP = async (req, res) => {
         .json({ success: true, message: "E-mail is already verified." });
     }
 
+    // Cooldown 
+    const now = Date.now();
+    const lastSent = user.lastOtpSentAt
+      ? new Date(user.lastOtpSentAt).getTime()
+      : 0;
+    const cooldown = 60 * 1000; // 60 seconds
+    const diff = now - lastSent;
+
+    if (diff < cooldown) {
+      const wait = Math.ceil((cooldown - diff) / 1000);
+      return res.status(429).json({
+        success: false,
+        message: `Please wait ${wait} seconds before requesting OTP again.`,
+      });
+    }
+
     const otp = String(crypto.randomInt(100000, 1000000));
     const hashedOTP = await bcrypt.hash(otp, 10);
 
     user.emailVerificationOTP = hashedOTP;
     user.emailVerificationExpires = new Date(Date.now() + 15 * 60 * 1000);
+    user.lastOtpSentAt = new Date();
     await user.save();
 
     await sendEmail(
@@ -208,10 +224,10 @@ exports.verifyOTP = async (req, res) => {
 };
 
 exports.loginUser = async (req, res, next) => {
-  const email = req.body.email;
+  const email = (req.body.email || "").trim().toLowerCase();
   const password = req.body.password;
   try {
-    const user = await User.findOne({ email: email }).select("+password");
+    const user = await User.findOne({ email }).select("+password");
     if (!user) {
       const error = new Error("User does not exist. Sign-up with the email.");
       error.statusCode = 409;
@@ -225,6 +241,9 @@ exports.loginUser = async (req, res, next) => {
       throw error;
     }
 
+    user.lastLoginAt = new Date();
+    await user.save({ validateBeforeSave: false });
+
     const token = jwt.sign(
       {
         userId: user._id.toString(),
@@ -232,9 +251,7 @@ exports.loginUser = async (req, res, next) => {
         profileCompleted: user.profileCompleted,
       },
       process.env.JWT_SECRET,
-      {
-        expiresIn: "2h",
-      }
+      { expiresIn: "2h" }
     );
 
     res.cookie("token", token, {
@@ -247,11 +264,12 @@ exports.loginUser = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       message: "Login Successfull!",
+      isVerified: user.isVerified,
+      profileCompleted: user.profileCompleted,
+      email: user.email,
     });
   } catch (err) {
-    if (!err.statusCode) {
-      err.statusCode = 500;
-    }
+    if (!err.statusCode) err.statusCode = 500;
     next(err);
   }
 };
@@ -261,6 +279,8 @@ exports.makeProfile = async (req, res, next) => {
   const age = req.body.age;
   const college_name = req.body.college_name;
   const college_id = req.body.college_id;
+  const college_department = req.body.college_department
+  const college_year = req.body.college_year
 
   try {
     const errors = validationResult(req);
@@ -284,13 +304,15 @@ exports.makeProfile = async (req, res, next) => {
     user.age = age;
     user.college_name = college_name;
     user.college_id = college_id;
+    user.college_department = college_department;
+    user.college_year = college_year;
     user.profileCompleted = true;
 
     await user.save();
     return res.status(200).json({
       success: true,
       message:
-        "Thanks for completing the profile. Now browse your favourite events!.",
+        "Thanks for completing the profile. Explore your favourite events seamlessly!.",
     });
   } catch (err) {
     if (!err.statusCode) {
@@ -309,10 +331,10 @@ exports.getProfile = async (req, res, next) => {
         .json({ success: false, message: "Please login to get user details." });
     }
 
-    const { _id, name, age, email, college_name, college_id, role } = user;
+    const { _id, name, age, email, college_name, college_id, college_department, college_year, role, isVerified } = user;
     return res.status(200).json({
       success: true,
-      data: { _id, name, age, email, college_name, college_id, role },
+      data: { _id, name, age, email, college_name, college_id, college_department, college_year, role, isVerified },
     });
   } catch (err) {
     if (!err.statusCode) {
@@ -332,7 +354,15 @@ exports.updateProfile = async (req, res, next) => {
       throw error;
     }
 
-    const { name, age, email, college_name, college_id } = req.body;
+    const {
+      name,
+      age,
+      email,
+      college_name,
+      college_id,
+      college_department,
+      college_year,
+    } = req.body;
 
     const user = await User.findById(req.userId);
     if (!user) {
@@ -342,26 +372,39 @@ exports.updateProfile = async (req, res, next) => {
       });
     }
 
-    if (user.email !== email) {
-      const existingUser = await User.findOne({ email: email });
+    if (email && user.email !== email.trim().toLowerCase()) {
+      const normalized = email.trim().toLowerCase();
+      const existingUser = await User.findOne({ email: normalized });
       if (existingUser) {
         const error = new Error("E-mail already exists!");
         error.statusCode = 409;
         throw error;
       }
-      user.email = email;
+      user.email = normalized;
+      user.isVerified = false;
+      user.emailVerificationOTP = undefined;
+      user.emailVerificationExpires = undefined;
+      user.lastOtpSentAt = undefined;
     }
 
-    user.name = name || user.name;
-    user.age = age || user.age;
-    user.college_id = college_id || user.college_id;
-    user.college_name = college_name || user.college_name;
+    if (typeof name !== "undefined") user.name = name;
+    if (typeof age !== "undefined") user.age = age;
+
+    if (typeof college_id !== "undefined") user.college_id = college_id;
+    if (typeof college_name !== "undefined") user.college_name = college_name;
+    if (typeof college_department !== "undefined")
+      user.college_department = college_department;
+    if (typeof college_year !== "undefined") user.college_year = college_year;
+
     user.profileCompleted = true;
 
     await user.save();
     return res.status(200).json({
       success: true,
       message: "Profile information updated successfully!",
+      isVerified: user.isVerified,
+      verificationRequired: !user.isVerified,
+      email: user.email,
     });
   } catch (err) {
     if (!err.statusCode) {
@@ -459,11 +502,23 @@ exports.resetPassword = async (req, res, next) => {
 };
 
 exports.checkLogin = async (req, res, next) => {
-  return res.status(200).json({
-    loggedIn: true,
-    userId: req.userId,
-    userRole: req.userRole,
-  });
+  try {
+    const user = await User.findById(req.userId).select("role isVerified profileCompleted email");
+    if (!user) {
+      return res.status(401).json({ loggedIn: false });
+    }
+    return res.status(200).json({
+      loggedIn: true,
+      userId: req.userId,
+      userRole: user.role,
+      isVerified: user.isVerified,
+      profileCompleted: user.profileCompleted,
+      email: user.email,
+    });
+  } catch (err) {
+    if (!err.statusCode) err.statusCode = 500;
+    next(err);
+  }
 };
 
 exports.logoutCheck = async (req, res, next) => {

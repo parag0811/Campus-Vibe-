@@ -11,49 +11,45 @@ export default function MainHeader() {
   const { user, isAuthenticated, loading, logout, checkAuth, authChecked } = useAuth();
   const [localLoading, setLocalLoading] = useState(false);
   const [isClient, setIsClient] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
-  // Set isClient to true when component mounts (avoiding hydration errors)
   useEffect(() => {
     setIsClient(true);
   }, []);
 
-  // Safe checkAuth that tracks component mounting
   const safeCheckAuth = useCallback(async () => {
-    let isMounted = true;
-    
     try {
       await checkAuth();
     } catch (error) {
       console.error("Auth check failed in header:", error);
     }
-    
-    return () => {
-      isMounted = false;
-    };
   }, [checkAuth]);
 
-  // Force a UI update whenever route changes
   useEffect(() => {
-    if (isClient) {
-      safeCheckAuth();
-    }
-  }, [safeCheckAuth, router, isClient]);
+    if (isClient) safeCheckAuth();
+    // close menu on route change
+    setMenuOpen(false);
+  }, [safeCheckAuth, router, isClient, pathname]);
+
+  useEffect(() => {
+    const onEsc = (e) => e.key === "Escape" && setMenuOpen(false);
+    if (menuOpen) window.addEventListener("keydown", onEsc);
+    return () => window.removeEventListener("keydown", onEsc);
+  }, [menuOpen]);
 
   const handleLogout = async () => {
     setLocalLoading(true);
     try {
       const success = await logout();
-      if (success) {
-        router.push("/login");
-      }
+      if (success) router.push("/login");
     } catch (error) {
       console.error("Logout error:", error);
     } finally {
       setLocalLoading(false);
+      setMenuOpen(false);
     }
   };
 
-  // Render auth actions based on authentication state
   const renderAuthActions = () => {
     if (!isClient || !authChecked || loading || localLoading) {
       return (
@@ -63,29 +59,97 @@ export default function MainHeader() {
       );
     }
 
-    return !isAuthenticated ? (
-      <>
-        <Link href="/login" className={styles.loginButton}>
-          Login
-        </Link>
-        <Link href="/register" className={styles.signupButton}>
-          Signup
-        </Link>
-      </>
-    ) : (
-      <div className={styles.navLinks}>
-        {/* Hide Events link if already on /events */}
+    if (!isAuthenticated) {
+      return (
+        <>
+          <Link href="/login" className={styles.loginButton}>
+            Login
+          </Link>
+          <Link href="/register" className={styles.signupButton}>
+            Signup
+          </Link>
+        </>
+      );
+    }
+
+    // Authenticated: show Explore + Hamburger only
+    return (
+      <div className={styles.authActions}>
         {pathname !== "/events" && (
-          <Link href="/events" className={styles.navLink}>
-            Events
+          <Link href="/events" className={styles.exploreLink} aria-label="Explore Events">
+            Explore Events
           </Link>
         )}
-        <Link href="/profile" className={styles.navLink}>
-          Profile
-        </Link>
-        <button onClick={handleLogout} className={styles.logoutButton}>
-          LogOut
+        <button
+          className={styles.hamburger}
+          aria-label="Open menu"
+          aria-expanded={menuOpen}
+          aria-haspopup="true"
+          onClick={() => setMenuOpen((v) => !v)}
+        >
+          <span />
+          <span />
+          <span />
         </button>
+
+        {menuOpen && (
+          <>
+            <div className={styles.menuOverlay} onClick={() => setMenuOpen(false)} />
+            <nav className={styles.menuPanel} role="menu" aria-label="User menu">
+              <button
+                className={styles.menuItem}
+                role="menuitem"
+                onClick={() => {
+                  setMenuOpen(false);
+                  router.push("/profile");
+                }}
+              >
+                Profile
+              </button>
+              <button
+                className={styles.menuItem}
+                role="menuitem"
+                onClick={() => {
+                  setMenuOpen(false);
+                  router.push("/my-events");
+                }}
+              >
+                My Registered Events
+              </button>
+
+              <div className={styles.menuSection}>
+                <div className={styles.menuSectionTitle}>My Organisations</div>
+                <div className={styles.orgList}>
+                  {(user?.organisation_Admin && user.organisation_Admin.length > 0)
+                    ? user.organisation_Admin.map((org, i) => {
+                        const id = org?._id || org;
+                        const name = org?.name || `Organisation ${i + 1}`;
+                        return (
+                          <button
+                            key={id}
+                            className={styles.orgItem}
+                            role="menuitem"
+                            onClick={() => {
+                              setMenuOpen(false);
+                              router.push(`/admin/org/${id}`);
+                            }}
+                          >
+                            {name}
+                          </button>
+                        );
+                      })
+                    : (
+                      <div className={styles.orgEmpty}>No organisations yet</div>
+                    )}
+                </div>
+              </div>
+
+              <button className={`${styles.menuItem} ${styles.logout}`} role="menuitem" onClick={handleLogout}>
+                Log Out
+              </button>
+            </nav>
+          </>
+        )}
       </div>
     );
   };
@@ -99,9 +163,7 @@ export default function MainHeader() {
             <span className={styles.hiveText}> Vibe</span>
           </Link>
         </div>
-        <div className={styles.actions}>
-          {renderAuthActions()}
-        </div>
+        <div className={styles.actions}>{renderAuthActions()}</div>
       </div>
     </header>
   );
