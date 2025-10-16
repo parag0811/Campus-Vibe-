@@ -73,7 +73,7 @@ exports.createOrganisation = async (req, res, next) => {
     }
 
     const userId = req.userId;
-    // Check if organisation already exists
+
     const existingOrg = await Organisation.findOne({ createdBy: userId });
     if (existingOrg) {
       return res.status(400).json({
@@ -81,57 +81,102 @@ exports.createOrganisation = async (req, res, next) => {
       });
     }
 
-    const { name, contact_email, description = "" } = req.body;
+    const { name, contact_email, description = "", kyc = {}, razorpayAccountId } = req.body;
+    const kycFullName = kyc.fullName || req.body["kyc.fullName"];
+    const kycPhoneNumber = kyc.phoneNumber || req.body["kyc.phoneNumber"];
 
-    if (!req.file) {
-      const error = new Error("Image is required to create an organisation.");
+    const imageFile = req.files?.image?.[0];
+    const docFile = req.files?.document?.[0];
+
+    // Validate files
+    if (!imageFile) {
+      const error = new Error("Organisation image is required.");
       error.statusCode = 422;
       throw error;
     }
-    const file = req.file;
-
-    if (
-      !file ||
-      !["image/jpeg", "image/png", "image/webp"].includes(file.mimetype)
-    ) {
-      const error = new Error("Only .jpg, .png, or .webp images are allowed.");
+    if (!["image/jpeg", "image/png", "image/webp"].includes(imageFile.mimetype)) {
+      const error = new Error("Only .jpg, .png, or .webp images are allowed for logo.");
       error.statusCode = 422;
       throw error;
     }
 
-    const randomImageName = (bytes = 32) =>
-      crypto.randomBytes(bytes).toString("hex");
+    if (!docFile) {
+      const error = new Error("KYC document is required.");
+      error.statusCode = 422;
+      throw error;
+    }
+    const allowedDocTypes = [
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "application/pdf",
+    ];
+    if (!allowedDocTypes.includes(docFile.mimetype)) {
+      const error = new Error("KYC document must be an image or PDF.");
+      error.statusCode = 422;
+      throw error;
+    }
 
-    const imageName = randomImageName();
+  if (!kycFullName || !kycPhoneNumber) {
+      const error = new Error("KYC full name and phone number are required.");
+      error.statusCode = 422;
+      throw error;
+    }
 
-    const buffer = await sharp(req.file.buffer)
+    const randomName = (bytes = 32) => crypto.randomBytes(bytes).toString("hex");
+    const imageKey = `org/${userId}/${randomName()}`;     // logo key
+    const docKey = `org/${userId}/kyc/${randomName()}`;   // kyc doc key
+
+    // Process and upload org image
+    const imageBuffer = await sharp(imageFile.buffer)
       .resize({ height: 200, width: 200, fit: "contain" })
       .toBuffer();
-
-    const params = {
+    await s3.send(new PutObjectCommand({
       Bucket: process.env.BUCKET_NAME,
-      Key: imageName,
-      Body: buffer,
-      ContentType: file.mimetype,
-    };
+      Key: imageKey,
+      Body: imageBuffer,
+      ContentType: imageFile.mimetype,
+    }));
 
-    const command = new PutObjectCommand(params);
-
-    await s3.send(command);
+    await s3.send(new PutObjectCommand({
+      Bucket: process.env.BUCKET_NAME,
+      Key: docKey,
+      Body: docFile.buffer,
+      ContentType: docFile.mimetype,
+    }));
 
     const organisation = new Organisation({
       createdBy: userId,
       name,
       description,
       contact_email,
-      imageName,
+      imageName: imageKey,
+      razorpayAccountId, // required, validated in route
+      kyc: {
+        fullName: kycFullName,
+        phoneNumber: kycPhoneNumber,
+        documentUrl: docKey,
+        verified: false,
+      },
     });
 
     await organisation.save();
 
-    return res
-      .status(201)
-      .json({ message: "Organisation created sucessfully!" });
+    // Promote user to organisationAdmin and link org to user model 
+    const user = await User.findById(userId);
+    if (user) {
+      user.role = "organisationAdmin";
+      user.organisation_Admin = Array.isArray(user.organisation_Admin) ? user.organisation_Admin : [];
+      if (!user.organisation_Admin.find(id => String(id) === String(organisation._id))) {
+        user.organisation_Admin.push(organisation._id);
+      }
+      await user.save({ validateBeforeSave: false });
+    }
+
+    return res.status(201).json({
+      message: "Organisation created successfully.",
+      organisationId: organisation._id,
+    });
   } catch (err) {
     if (!err.statusCode) {
       err.statusCode = 500;
@@ -160,51 +205,83 @@ exports.updateOrganisationDetail = async (req, res, next) => {
 
     organisation.name = req.body.name || organisation.name;
     organisation.description = req.body.description || organisation.description;
-    organisation.contact_email =
-      req.body.contact_email || organisation.contact_email;
+    organisation.contact_email = req.body.contact_email || organisation.contact_email;
 
-    // if (!req.file) {
-    //   const error = new Error("Image is required to create an organisation.");
-    //   error.statusCode = 422;
-    //   throw error;
-    // }
+    const kycFullName = req.body.kyc?.fullName || req.body["kyc.fullName"];
+    const kycPhoneNumber = req.body.kyc?.phoneNumber || req.body["kyc.phoneNumber"];
+    if (kycFullName) organisation.kyc.fullName = kycFullName;
+    if (kycPhoneNumber) organisation.kyc.phoneNumber = kycPhoneNumber;
 
-    if (req.file) {
-      if (organisation.imageName) {
-        const deleteParams = {
-          Bucket: process.env.BUCKET_NAME,
-          Key: organisation.imageName,
-        };
-        await s3.send(new DeleteObjectCommand(deleteParams));
+    const imageFile = req.files?.image?.[0];
+    const docFile = req.files?.document?.[0];
+
+    // Replace org image if provided
+    if (imageFile) {
+      if (!["image/jpeg", "image/png", "image/webp"].includes(imageFile.mimetype)) {
+        const error = new Error("Only .jpg, .png, or .webp images are allowed for logo.");
+        error.statusCode = 422;
+        throw error;
       }
 
-      const file = req.file;
-      const randomImageName = (bytes = 32) =>
-        crypto.randomBytes(bytes).toString("hex");
-      const imageName = randomImageName();
-      const buffer = await sharp(req.file.buffer)
+      if (organisation.imageName) {
+        await s3.send(new DeleteObjectCommand({ Bucket: process.env.BUCKET_NAME, Key: organisation.imageName }));
+      }
+
+      const newImageKey = `org/${userId}/${crypto.randomBytes(16).toString("hex")}`;
+      const imageBuffer = await sharp(imageFile.buffer)
         .resize({ height: 200, width: 200, fit: "contain" })
         .toBuffer();
 
-      const uploadParams = {
+      await s3.send(new PutObjectCommand({
         Bucket: process.env.BUCKET_NAME,
-        Key: imageName,
-        Body: buffer,
-        ContentType: file.mimetype,
-      };
+        Key: newImageKey,
+        Body: imageBuffer,
+        ContentType: imageFile.mimetype,
+      }));
 
-      const command = new PutObjectCommand(uploadParams);
+      organisation.imageName = newImageKey;
+    }
 
-      await s3.send(command);
+    // Replace KYC doc if provided
+    if (docFile) {
+      const allowedDocTypes = [
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+        "application/pdf",
+      ];
+      if (!allowedDocTypes.includes(docFile.mimetype)) {
+        const error = new Error("KYC document must be an image or PDF.");
+        error.statusCode = 422;
+        throw error;
+      }
 
-      organisation.imageName = imageName;
+      if (organisation.kyc?.documentUrl) {
+        await s3.send(new DeleteObjectCommand({ Bucket: process.env.BUCKET_NAME, Key: organisation.kyc.documentUrl }));
+      }
+
+      const newDocKey = `org/${userId}/kyc/${crypto.randomBytes(16).toString("hex")}`;
+      await s3.send(new PutObjectCommand({
+        Bucket: process.env.BUCKET_NAME,
+        Key: newDocKey,
+        Body: docFile.buffer,
+        ContentType: docFile.mimetype,
+      }));
+
+      organisation.kyc.documentUrl = newDocKey;
+      // optional: reset verification on document change
+      organisation.kyc.verified = false;
+    }
+
+    // Do NOT allow editing Razorpay account id here
+    if (typeof req.body.razorpayAccountId !== "undefined") {
+      // ignore silently or enforce rejection; here we ignore
+      delete req.body.razorpayAccountId;
     }
 
     await organisation.save();
 
-    return res
-      .status(200)
-      .json({ message: "Organisation information updated successfully." });
+    return res.status(200).json({ message: "Organisation information updated successfully." });
   } catch (err) {
     if (!err.statusCode) {
       err.statusCode = 500;
@@ -223,23 +300,18 @@ exports.deleteOrganisation = async (req, res, next) => {
       throw error;
     }
     if (!organisation.imageName) {
-      const error = new Error(
-        "Organisation image not found. Deletion aborted."
-      );
+      const error = new Error("Organisation image not found. Deletion aborted.");
       error.statusCode = 400;
       throw error;
     }
-    const params = {
-      Bucket: process.env.BUCKET_NAME,
-      Key: organisation.imageName,
-    };
-    const command = new DeleteObjectCommand(params);
-    await s3.send(command);
+    await s3.send(new DeleteObjectCommand({ Bucket: process.env.BUCKET_NAME, Key: organisation.imageName }));
+    // delete KYC doc if present
+    if (organisation.kyc?.documentUrl) {
+      await s3.send(new DeleteObjectCommand({ Bucket: process.env.BUCKET_NAME, Key: organisation.kyc.documentUrl }));
+    }
 
     await organisation.deleteOne();
-    return res
-      .status(200)
-      .json({ message: "Organisation deleted successfully." });
+    return res.status(200).json({ message: "Organisation deleted successfully." });
   } catch (err) {
     if (!err.statusCode) {
       err.statusCode = 500;
@@ -296,6 +368,7 @@ exports.loadCreatedEvents = async (req, res, next) => {
   }
 };
 
+// Fix fields: profilePicture -> profileImage in searchUser + loadAdmins
 exports.searchUser = async (req, res, next) => {
   const { email } = req.query;
   if (!email) {
@@ -311,13 +384,13 @@ exports.searchUser = async (req, res, next) => {
         _id: user._id,
         name: user.name,
         email: user.email,
-        profilePicture: user.profilePicture || null,
+        profileImage: user.profileImage || null,
       },
     });
   } catch (err) {
     res.status(500).json({ message: "Server error" });
   }
-}
+};
 
 exports.assignAdmin = async (req, res, next) => {
   const { userId, organisationId } = req.body;
@@ -402,19 +475,15 @@ exports.loadAdmins = async (req, res, next) => {
       return res.status(404).json({ message: "Organisation not found." });
     }
 
-    // Populate user details for each admin
-    const fetchAdmin = await OrganisationAdmin.find({
-      organisation: organisationId,
-    })
-      .populate("user", "name email profilePicture")
+    const fetchAdmin = await OrganisationAdmin.find({ organisation: organisationId })
+      .populate("user", "name email profileImage")
       .lean();
 
-    // Transform to include user details
-    const admins = fetchAdmin.map(admin => ({
+    const admins = fetchAdmin.map((admin) => ({
       user: admin.user._id,
       userName: admin.user.name,
       userEmail: admin.user.email,
-      profilePicture: admin.user.profilePicture || null,
+      profileImage: admin.user.profileImage || null,
       createdAt: admin.createdAt,
     }));
 
