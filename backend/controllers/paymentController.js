@@ -113,7 +113,6 @@ exports.verifyPayment = async (req, res, next) => {
       return res.status(400).json({ success: false, message: "Invalid payment signature" });
     }
 
-    // Fetch payment from Razorpay to confirm capture
     const rpPayment = await razorpay.payments.fetch(razorpay_payment_id);
     if (!rpPayment || rpPayment.order_id !== razorpay_order_id) {
       return res.status(400).json({ success: false, message: "Payment mismatch" });
@@ -146,7 +145,6 @@ exports.verifyPayment = async (req, res, next) => {
     payment.contact = rpPayment.contact;
     await payment.save();
 
-    // Create ticket :--- bookingId is now a receipt
     let ticket = await Ticket.findOne({ bookingId: payment.receipt });
     if (!ticket) {
       ticket = await Ticket.create({
@@ -158,7 +156,6 @@ exports.verifyPayment = async (req, res, next) => {
       });
     }
 
-    // Mark user as attendee for the event
     const ev = await Event.findById(payment.event);
     if (ev) {
       const exists = (ev.attendees || []).some((a) => String(a) === String(userId));
@@ -169,7 +166,6 @@ exports.verifyPayment = async (req, res, next) => {
       }
     }
 
-    // Update organisation balances
     await Organisation.findByIdAndUpdate(payment.organisation, {
       $inc: {
         pendingPayoutBalance: payment.orgShare,
@@ -190,6 +186,47 @@ exports.verifyPayment = async (req, res, next) => {
         await analytics.save();
       }
     } catch (_) {}
+
+    try {
+      const ev = await Event.findById(payment.event).select("_id created_by_organisation").lean();
+      const org = await Organisation.findById(payment.organisation).select("razorpayAccountId").lean();
+
+
+      const method = (payment.method || "").toLowerCase();
+      const methodField =
+        method === "upi" ? "revenue.methodBreakdown.upi"
+        : method === "card" ? "revenue.methodBreakdown.card"
+        : method === "netbanking" ? "revenue.methodBreakdown.netbanking"
+        : method === "wallet" ? "revenue.methodBreakdown.wallet"
+        : method === "emi" ? "revenue.methodBreakdown.emi"
+        : "revenue.methodBreakdown.other";
+
+      // Build $inc for amounts
+      const inc = {
+        "revenue.ticketsSold": 1,
+        "revenue.grossAmountPaise": payment.amount || 0,
+        "revenue.platformFeePaise": payment.platformFee || 0,
+        "revenue.orgSharePaise": payment.orgShare || 0,
+        "payout.pendingPayoutPaise": payment.orgShare || 0,
+      };
+      inc[methodField] = 1;
+
+      await EventAnalytics.findOneAndUpdate(
+        { event: payment.event },
+        {
+          $setOnInsert: {
+            event: payment.event,
+            "revenue.currency": "INR",
+            "payout.payoutMode": "auto",
+            "payout.linkedRazorpayAccountId": org?.razorpayAccountId || undefined,
+          },
+          $inc: inc,
+          $max: { "revenue.lastPaymentAt": new Date() },
+        },
+        { upsert: true, new: true }
+      );
+    } catch (_) {
+    }
 
     return res.status(200).json({
       success: true,

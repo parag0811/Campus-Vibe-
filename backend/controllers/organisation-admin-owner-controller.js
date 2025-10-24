@@ -322,11 +322,8 @@ exports.getEventAnalytics = async (req, res, next) => {
       error.statusCode = 404;
       throw error;
     }
-
     if (event.created_by_organisation.toString() !== organisationId) {
-      const error = new Error(
-        "This event does not belong to the given organisation."
-      );
+      const error = new Error("This event does not belong to the given organisation.");
       error.statusCode = 403;
       throw error;
     }
@@ -345,29 +342,28 @@ exports.getEventAnalytics = async (req, res, next) => {
       college_name: user.college_name,
       college_id: user.college_id,
     }));
-
     const registerationsCount = event.attendees?.length || 0;
 
     const analytics = await EventAnalytics.findOneAndUpdate(
+      { event: eventId },
       {
-        event: eventId,
+        $set: {
+          registerations: registerationsCount,
+          registered_Users: registered_Users,
+          "payout.linkedRazorpayAccountId": organisation.razorpayAccountId,
+        },
+        $setOnInsert: {
+          event: eventId,
+          "revenue.currency": "INR",
+          "payout.payoutMode": "auto",
+        },
       },
-      {
-        event: eventId,
-        registerations: registerationsCount,
-        registered_Users: registered_Users,
-      },
-      {
-        upsert: true,
-        new: true,
-      }
+      { upsert: true, new: true }
     );
 
     return res.status(200).json({ message: "Analytics generated!", analytics });
   } catch (err) {
-    if (!err.statusCode) {
-      err.statusCode = 500;
-    }
+    if (!err.statusCode) err.statusCode = 500;
     next(err);
   }
 };
