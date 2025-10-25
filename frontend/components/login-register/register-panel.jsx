@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import styles from "./register-panel.module.css";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/common/toast";
@@ -13,78 +13,57 @@ export default function RegisterPanel() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [fieldErrors, setFieldErrors] = useState([]);
+  const inFlight = useRef(false);
 
-  // Frontend validation matching backend
+  const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5000";
+
   const validate = () => {
     const errors = [];
+    if (!email) errors.push({ path: "email", msg: "E-mail must not be an empty field." });
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.push({ path: "email", msg: "E-mail must be valid." });
 
-    // Email
-    if (!email) {
-      errors.push({ path: "email", msg: "E-mail must not be an empty field." });
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      errors.push({ path: "email", msg: "E-mail must be valid." });
-    }
+    if (!password) errors.push({ path: "password", msg: "Password cannot be an empty field." });
+    else if (password.length < 8 || password.length > 18) errors.push({ path: "password", msg: "Password must be 8-18 characters long." });
+    else if (!/[A-Z]/.test(password)) errors.push({ path: "password", msg: "Password must contain at least one uppercase character." });
+    else if (!/[0-9]/.test(password)) errors.push({ path: "password", msg: "Password must contain at least one number." });
 
-    // Password
-    if (!password) {
-      errors.push({ path: "password", msg: "Password cannot be an empty field." });
-    } else if (password.length < 8 || password.length > 18) {
-      errors.push({ path: "password", msg: "Password must be 8-18 characters long." });
-    } else if (!/[A-Z]/.test(password)) {
-      errors.push({ path: "password", msg: "Password must contain at least one uppercase character." });
-    } else if (!/[0-9]/.test(password)) {
-      errors.push({ path: "password", msg: "Password must contain at least one number." });
-    }
-
-    // Confirm Password
-    if (confirmPassword !== password) {
-      errors.push({ path: "confirmPassword", msg: "Passwords do not match." });
-    }
-
+    if (confirmPassword !== password) errors.push({ path: "confirmPassword", msg: "Passwords do not match." });
     return errors;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (inFlight.current) return;
     setFieldErrors([]);
-    setLoading(true);
-
-    // Frontend validation
     const frontendErrors = validate();
-    if (frontendErrors.length > 0) {
+    if (frontendErrors.length) {
       setFieldErrors(frontendErrors);
-      setLoading(false);
       return;
     }
 
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL;
+    inFlight.current = true;
+    setLoading(true);
     try {
-      const res = await fetch(`${baseUrl}/auth/register-new-user`, {
+      const res = await fetch(`${API_BASE}/auth/register-new-user`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, confirmPassword }),
+        body: JSON.stringify({ email: email.trim().toLowerCase(), password, confirmPassword }),
       });
+      const data = await res.json().catch(() => ({}));
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        // Backend validation errors
-        const { message, data: validationErrors } = data;
-        setFieldErrors(Array.isArray(validationErrors) ? validationErrors : []);
-        toast.error(message || "Registration failed.");
-        setLoading(false);
-        return;
+      if (!res.ok || !data?.success) {
+        const firstErr = Array.isArray(data?.data) && data.data.length ? data.data[0]?.msg : null;
+        if (Array.isArray(data?.data)) setFieldErrors(data.data);
+        throw new Error(firstErr || data?.message || "Registration failed.");
       }
 
-      setEmail("");
-      setPassword("");
-      setConfirmPassword("");
       toast.success(data.message || "Registered successfully.");
-      router.push("/login");
+      router.replace(`/verify-email?email=${encodeURIComponent(data.email)}`); // use data.email
     } catch (err) {
-      toast.error("Something went wrong. Try again later.");
+      toast.error(err.message || "Something went wrong. Try again later.");
     } finally {
       setLoading(false);
+      inFlight.current = false;
     }
   };
 
@@ -99,83 +78,35 @@ export default function RegisterPanel() {
 
         <form onSubmit={handleSubmit} className={styles.signUpForm} autoComplete="off">
           <div className={styles.formGroup}>
-            <label htmlFor="email" className={styles.label}>
-              YOUR EMAIL
-            </label>
-            <input
-              id="email"
-              type="email"
-              placeholder="Enter your email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className={styles.input}
-              required
-              autoComplete="email"
-            />
+            <label htmlFor="email" className={styles.label}>YOUR EMAIL</label>
+            <input id="email" type="email" placeholder="Enter your email" value={email} onChange={(e) => setEmail(e.target.value)} className={styles.input} required autoComplete="email" />
             {Array.isArray(fieldErrors) && fieldErrors.find((err) => err.path === "email") && (
-              <div style={{ color: "#ef4444", marginTop: 4 }}>
-                {fieldErrors.find((err) => err.path === "email").msg}
-              </div>
+              <div style={{ color: "#ef4444", marginTop: 4 }}>{fieldErrors.find((err) => err.path === "email").msg}</div>
             )}
           </div>
 
           <div className={styles.formGroup}>
-            <label htmlFor="password" className={styles.label}>
-              PASSWORD
-            </label>
-            <input
-              id="password"
-              type="password"
-              placeholder="Enter your password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className={styles.input}
-              required
-              autoComplete="new-password"
-            />
+            <label htmlFor="password" className={styles.label}>PASSWORD</label>
+            <input id="password" type="password" placeholder="Enter your password" value={password} onChange={(e) => setPassword(e.target.value)} className={styles.input} required autoComplete="new-password" />
             {Array.isArray(fieldErrors) && fieldErrors.find((err) => err.path === "password") && (
-              <div style={{ color: "#ef4444", marginTop: 4 }}>
-                {fieldErrors.find((err) => err.path === "password").msg}
-              </div>
+              <div style={{ color: "#ef4444", marginTop: 4 }}>{fieldErrors.find((err) => err.path === "password").msg}</div>
             )}
           </div>
 
           <div className={styles.formGroup}>
-            <label htmlFor="confirmPassword" className={styles.label}>
-              CONFIRM PASSWORD
-            </label>
-            <input
-              id="confirmPassword"
-              type="password"
-              placeholder="Re-enter your password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              className={styles.input}
-              required
-              autoComplete="new-password"
-            />
+            <label htmlFor="confirmPassword" className={styles.label}>CONFIRM PASSWORD</label>
+            <input id="confirmPassword" type="password" placeholder="Re-enter your password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className={styles.input} required autoComplete="new-password" />
             {Array.isArray(fieldErrors) && fieldErrors.find((err) => err.path === "confirmPassword") && (
-              <div style={{ color: "#ef4444", marginTop: 4 }}>
-                {fieldErrors.find((err) => err.path === "confirmPassword").msg}
-              </div>
+              <div style={{ color: "#ef4444", marginTop: 4 }}>{fieldErrors.find((err) => err.path === "confirmPassword").msg}</div>
             )}
           </div>
 
-          <button
-            type="submit"
-            className={styles.signUpButton}
-            disabled={loading}
-          >
+          <button type="submit" className={styles.signUpButton} disabled={loading}>
             {loading ? "Signing up..." : "Sign Up"}
           </button>
 
-          <div className={styles.divider}>
-            <span>Or</span>
-          </div>
-
-          <button type="button" className={styles.googleButton}>
-            Sign up with Google
-          </button>
+          <div className={styles.divider}><span>Or</span></div>
+          <button type="button" className={styles.googleButton} disabled={loading}>Sign up with Google</button>
         </form>
       </div>
     </div>

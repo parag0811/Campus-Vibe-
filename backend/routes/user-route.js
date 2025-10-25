@@ -19,7 +19,6 @@ const profileValidate = [
     .withMessage("Please enter a valid age.")
     .bail()
     .trim()
-    .bail()
     .isInt({ min: 13, max: 99 })
     .withMessage("Age must be between 13 and 99."),
   body("college_name")
@@ -28,6 +27,7 @@ const profileValidate = [
     .bail()
     .isLength({ max: 60 })
     .withMessage("College must be within 60 characters")
+    .trim()
     .escape(),
   body("college_id")
     .notEmpty()
@@ -35,10 +35,24 @@ const profileValidate = [
     .bail()
     .isLength({ max: 24 })
     .withMessage("Id must be within 24 characters")
+    .trim()
     .escape(),
+  body("college_department")
+    .notEmpty()
+    .withMessage("Please enter your department/program.")
+    .bail()
+    .isLength({ max: 60 })
+    .withMessage("Department must be within 60 characters")
+    .trim()
+    .escape(),
+  body("college_year")
+    .notEmpty()
+    .withMessage("Please enter your current year/semester.")
+    .bail()
+    .isInt({ min: 1, max: 10 })
+    .withMessage("Year must be between 1 and 10."),
 ];
 
-// Update-profile: make fields optional so partial updates work
 const updateProfileValidate = [
   body("name").optional().isLength({ max: 16 }).trim().escape(),
   body("age").optional().isInt({ min: 13, max: 99 }),
@@ -49,7 +63,6 @@ const updateProfileValidate = [
   body("college_year").optional().isInt({ min: 1, max: 10 }),
 ];
 
-// Reuse a small validator for email, and for OTP verify
 const emailOnly = [
   body("email")
     .notEmpty()

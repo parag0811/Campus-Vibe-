@@ -6,8 +6,7 @@ module.exports = (req, res, next) => {
   const token = req.cookies.token;
 
   if (!token) {
-    // Do NOT throw; instead, call next(err)
-    const error = new Error("We cannot login for a moment. Try again later.");
+    const error = new Error("Please login again.");
     error.statusCode = 401;
     return next(error);
   }
@@ -15,19 +14,25 @@ module.exports = (req, res, next) => {
   let decodedToken;
   try {
     decodedToken = jwt.verify(token, process.env.JWT_SECRET);
+    req.userId = decodedToken.userId;
+    req.userRole = decodedToken.userRole;
+    req.profileCompleted = decodedToken.profileCompleted;
+    next();
   } catch (err) {
-    err.message = "Session expired. Please log in again!";
-    err.statusCode = 403;
-    return next(err);
-  }
-  if (!decodedToken) {
-    const error = new Error("Access denied. Try again later.");
-    error.statusCode = 401;
-    return next(error);
-  }
+    if (err.name === "TokenExpiredError") {
+      res.clearCookie("token", {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+      });
+      err.message = "Session expired. Please log in again!";
+      err.statusCode = 401;
+    } else {
+      err.message = "Invalid token. Please log in again!";
+      err.statusCode = 403;
+    }
 
-  req.userId = decodedToken.userId;
-  req.userRole = decodedToken.userRole;
-  req.profileCompleted = decodedToken.profileCompleted;
-  next();
+    next(err);
+  }
 };

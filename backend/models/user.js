@@ -36,21 +36,21 @@ const userSchema = new Schema(
       type: String,
       trim: true,
       required: function () {
-        return this.role === "student";
+        return this.role === "student" && this.profileCompleted === true;
       },
     },
     college_id: {
       type: String,
       trim: true,
       required: function () {
-        return this.role === "student";
+        return this.role === "student" && this.profileCompleted === true;
       },
     },
     college_department: {
       type: String,
       trim: true,
       required: function () {
-        return this.role === "student";
+        return this.role === "student" && this.profileCompleted === true;
       },
     },
     college_year: {
@@ -58,7 +58,7 @@ const userSchema = new Schema(
       min: 1,
       max: 10,
       required: function () {
-        return this.role === "student";
+        return this.role === "student" && this.profileCompleted === true;
       },
     },
 

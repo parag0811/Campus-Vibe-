@@ -1,3 +1,4 @@
+"use client";
 import RegisterPanel from "@/components/login-register/register-panel";
 import styles from "./register.module.css";
 import Image from "next/image";
@@ -5,10 +6,8 @@ import registerbg from "@/assets/registerbg.png";
 import Link from "next/link";
 
 export default function Register() {
-
   return (
     <div className={styles.container}>
-      {/* Left side - Login */}
       <div className={styles.leftPanel}>
         <Image
           src={registerbg}
@@ -30,7 +29,6 @@ export default function Register() {
         </div>
       </div>
 
-      {/* Right side - Sign Up */}
       <RegisterPanel />
     </div>
   );

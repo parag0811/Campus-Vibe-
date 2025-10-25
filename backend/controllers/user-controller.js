@@ -213,6 +213,7 @@ exports.verifyOTP = async (req, res) => {
     user.isVerified = true;
     user.emailVerificationOTP = undefined;
     user.emailVerificationExpires = undefined;
+    user.lastOtpSentAt = undefined; 
     await user.save();
 
     return res
@@ -389,14 +390,22 @@ exports.updateProfile = async (req, res, next) => {
 
     if (typeof name !== "undefined") user.name = name;
     if (typeof age !== "undefined") user.age = age;
-
     if (typeof college_id !== "undefined") user.college_id = college_id;
     if (typeof college_name !== "undefined") user.college_name = college_name;
-    if (typeof college_department !== "undefined")
-      user.college_department = college_department;
+    if (typeof college_department !== "undefined") user.college_department = college_department;
     if (typeof college_year !== "undefined") user.college_year = college_year;
 
-    user.profileCompleted = true;
+    const hasAllStudentFields =
+      typeof name !== "undefined" &&
+      typeof age !== "undefined" &&
+      typeof college_name !== "undefined" &&
+      typeof college_id !== "undefined" &&
+      typeof college_department !== "undefined" &&
+      typeof college_year !== "undefined";
+
+    if (!user.profileCompleted && hasAllStudentFields) {
+      user.profileCompleted = true;
+    }
 
     await user.save();
     return res.status(200).json({
@@ -415,14 +424,11 @@ exports.updateProfile = async (req, res, next) => {
 };
 
 exports.forgotPassword = async (req, res) => {
-  const { email } = req.body;
-
+  const email = (req.body.email || "").trim().toLowerCase();
   try {
     const user = await User.findOne({ email });
     if (!user)
-      return res
-        .status(404)
-        .json({ success: false, message: "User not found" });
+      return res.status(404).json({ success: false, message: "User not found" });
 
     // Generate token
     const token = crypto.randomBytes(32).toString("hex");
@@ -434,17 +440,16 @@ exports.forgotPassword = async (req, res) => {
 
     await user.save();
 
-    const resetURL = `http://localhost:3000/reset-password/${token}`;
+    const baseUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+    const resetURL = `${baseUrl.replace(/\/$/, "")}/reset-password/${token}`;
 
     await sendEmail(
       user.email,
       "Password Reset",
-      `Hey, Looks like you forgot some personal data. No worry! Reset via: ${resetURL}`
+      `Reset your password using this link (valid 10 minutes): ${resetURL}`
     );
 
-    return res
-      .status(200)
-      .json({ success: true, message: "Password reset link sent to email" });
+    return res.status(200).json({ success: true, message: "Password reset link sent to email" });
   } catch (err) {
     res.status(500).json({ success: false, message: "Server error" });
   }
@@ -525,8 +530,8 @@ exports.logoutCheck = async (req, res, next) => {
   res.clearCookie("token", {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/", // ensure it matches cookie path
+    sameSite: "Strict",
+    path: "/",
   });
   return res.status(200).json({ message: "Logged Out" });
 };
