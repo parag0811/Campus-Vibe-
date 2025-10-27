@@ -1,19 +1,31 @@
-const nodemailer = require('nodemailer');
-require('dotenv').config();
+const nodemailer = require("nodemailer");
+require("dotenv").config();
 
-module.exports = async (to, subject, text) => {
+module.exports = async function sendEmail(to, subject, text) {
+  const user = process.env.EMAIL_USER;
+  const pass = process.env.EMAIL_PASS;
+
+  if (!user || !pass) {
+    throw new Error("EMAIL_USER/EMAIL_PASS are not set");
+  }
+
   const transporter = nodemailer.createTransport({
-    service: 'Gmail',
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS,
-    },
+    host: "smtp.gmail.com",
+    port: 465,
+    secure: true, // 465 TLS
+    auth: { user, pass },
   });
 
-  await transporter.sendMail({
-    from: '"Campus Vibe" <noreply@yourapp.com>',
-    to,
-    subject,
-    text,
-  });
-};
+  try {
+    const info = await transporter.sendMail({
+      from: user,
+      to,
+      subject,
+      text,
+    });
+    console.log(`Mail sent ${info.messageId} -> ${to}`);
+  } catch (err) {
+    console.error("Nodemailer send failed:", err?.response || err?.message || err);
+    throw err;
+  }
+}

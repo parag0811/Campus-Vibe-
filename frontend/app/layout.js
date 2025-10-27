@@ -17,6 +17,7 @@ const hideHeaderFooterRoutes = [
   '/admin/events/create-event',
   '/admin/admins',
   '/admin/profile',
+  '/verify-email'
 ];
 
 export default function RootLayout({ children }) {

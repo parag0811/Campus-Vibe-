@@ -1,53 +1,69 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap");
+
 .wrapper {
-  display: grid;
-  grid-template-columns: 1fr minmax(420px, 560px);
   min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 32px 16px;
   background: #ffffff;
+  font-family: "Inter", system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
 }
 
-.leftPane {
-  grid-column: 1 / 2;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  padding: 48px 8vw;
-  gap: 16px;
+.card {
+  width: 100%;
+  max-width: 560px;
+  background: #fff;
+  border: 1px solid #eef;
+  border-radius: 16px;
+  padding: 32px 28px;
+  box-shadow: 0 20px 40px rgba(76, 29, 149, 0.08);
 }
 
 .brand {
-  font-size: 22px;
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 34px; /* bigger than content */
   font-weight: 800;
-  letter-spacing: 0.3px;
-  margin-bottom: 8px;
+  letter-spacing: 0.2px;
+  margin-bottom: 12px;
 }
 .brandPrimary { color: #0f172a; }
 .brandAccent { color: #7c3aed; }
 
 .title {
-  font-size: 28px;
+  text-align: center;
+  font-size: 24px;
   color: #0f172a;
   font-weight: 800;
-  margin: 6px 0 2px;
+  margin: 4px 0 2px;
 }
 .subtitle {
+  text-align: center;
   color: #6b7280;
-  margin-bottom: 12px;
+  margin-bottom: 18px;
 }
 
-.form { display: flex; flex-direction: column; gap: 18px; max-width: 440px; }
+.form { display: flex; flex-direction: column; gap: 18px; }
 .formGroup { display: flex; flex-direction: column; gap: 8px; }
-.label { color: #374151; font-weight: 600; font-size: 14px; }
+.label { color: #374151; font-weight: 600; font-size: 13px; letter-spacing: 0.2px; }
 
+/* Match register input feel */
 .input {
-  height: 44px;
+  height: 48px;
   border: 1px solid #e5e7eb;
+  background: #f9fafb;
   border-radius: 10px;
-  padding: 0 12px;
+  padding: 0 14px;
+  color: black;
   font-size: 14px;
   outline: none;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
 }
+.input::placeholder { color: #9ca3af; }
 .input:focus {
+  background: #fff;
   border-color: #c4b5fd;
   box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.12);
 }
@@ -55,7 +71,7 @@
 .actionsRow { display: flex; gap: 10px; }
 
 .primaryBtn {
-  height: 44px;
+  height: 48px;
   background: #7c3aed;
   color: white;
   font-weight: 700;
@@ -68,41 +84,19 @@
 .primaryBtn:active { transform: translateY(1px); }
 
 .secondaryBtn {
-  height: 40px;
+  height: 44px;
   background: #f3e8ff;
   color: #5b21b6;
   font-weight: 700;
   border: 1px solid #e9d5ff;
   border-radius: 10px;
-  padding: 0 14px;
+  padding: 0 16px;
   cursor: pointer;
 }
 .secondaryBtn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
-
-.ghostBtn {
-  height: 40px;
-  background: #ffffff;
-  color: #4c1d95;
-  font-weight: 700;
-  border: 1px dashed #e5e7eb;
-  border-radius: 10px;
-  padding: 0 14px;
-  cursor: pointer;
-}
-
-.helper {
-  color: #6b7280;
-  font-size: 13px;
-}
-.link {
-  color: #7c3aed;
-  font-weight: 700;
-  text-decoration: none;
-}
-.link:hover { text-decoration: underline; }
 
 .msgError, .msgSuccess, .msgInfo {
   padding: 10px 12px;
@@ -114,43 +108,7 @@
 .msgSuccess { color: #155e75; background: #cffafe; border-color: #a5f3fc; }
 .msgInfo { color: #4b5563; background: #f3f4f6; border-color: #e5e7eb; }
 
-.footerLinks {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  color: #6b7280;
-  font-size: 13px;
-  margin-top: 4px;
-}
-
-.rightPane {
-  grid-column: 2 / 3;
-  position: relative;
-  background: url("/images/login-hero.jpg"), linear-gradient(135deg, #1f1147, #2c1e57);
-  background-size: cover;
-  background-position: center;
-  isolation: isolate;
-}
-.rightOverlay {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(180deg, rgba(15, 23, 42, 0.50), rgba(15, 23, 42, 0.60));
-  z-index: 1;
-}
-.rightContent {
-  position: absolute;
-  z-index: 2;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  color: #ffffff;
-  text-align: center;
-  padding: 24px;
-}
-.rightTitle { font-size: 32px; font-weight: 800; margin-bottom: 6px; }
-.rightText { color: #e5e7eb; }
-
-@media (max-width: 960px) {
-  .wrapper { grid-template-columns: 1fr; }
-  .rightPane { display: none; }
+@media (max-width: 560px) {
+  .card { padding: 24px 18px; }
+  .brand { font-size: 30px; }
 }

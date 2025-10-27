@@ -59,38 +59,18 @@ exports.sendVerificationOTP = async (req, res) => {
   try {
     const email = (req.body.email || "").trim().toLowerCase();
     const user = email ? await User.findOne({ email }) : null;
+    if (!user) return res.status(404).json({ success: false, message: "User not found." });
+    if (user.isVerified) return res.status(200).json({ success: true, message: "E-mail is already verified." });
 
-    if (!user) {
-      return res
-        .status(404)
-        .json({ success: false, message: "User not found." });
-    }
-    if (user.isVerified) {
-      return res
-        .status(200)
-        .json({ success: true, message: "E-mail is already verified." });
-    }
-
-    // Cooldown 
     const now = Date.now();
-    const lastSent = user.lastOtpSentAt
-      ? new Date(user.lastOtpSentAt).getTime()
-      : 0;
-    const cooldown = 60 * 1000; // 60 seconds
-    const diff = now - lastSent;
-
-    if (diff < cooldown) {
-      const wait = Math.ceil((cooldown - diff) / 1000);
-      return res.status(429).json({
-        success: false,
-        message: `Please wait ${wait} seconds before requesting OTP again.`,
-      });
+    const last = user.lastOtpSentAt ? new Date(user.lastOtpSentAt).getTime() : 0;
+    if (now - last < 60_000) {
+      const wait = Math.ceil((60_000 - (now - last)) / 1000);
+      return res.status(429).json({ success: false, message: `Please wait ${wait} seconds before requesting OTP again.` });
     }
 
     const otp = String(crypto.randomInt(100000, 1000000));
-    const hashedOTP = await bcrypt.hash(otp, 10);
-
-    user.emailVerificationOTP = hashedOTP;
+    user.emailVerificationOTP = await bcrypt.hash(otp, 10);
     user.emailVerificationExpires = new Date(Date.now() + 15 * 60 * 1000);
     user.lastOtpSentAt = new Date();
     await user.save();
@@ -98,66 +78,46 @@ exports.sendVerificationOTP = async (req, res) => {
     await sendEmail(
       email,
       "OTP for Verification",
-      `Your Campus Vibe verification code is ${otp}. It expires in 15 minutes.`
+      `Your Campus Vibe verification code is ${otp}.\nThis code expires in 15 minutes.`
     );
 
-    return res.json({
-      success: true,
-      message: "Verification OTP sent to email.",
-    });
+    return res.json({ success: true, message: "Verification OTP sent to email." });
   } catch (error) {
+    console.error("sendVerificationOTP error:", error);
     return res.status(500).json({ success: false, message: "Server error" });
   }
 };
 
-// Resend OTP
+// resend OTP
 exports.resendVerificationOTP = async (req, res) => {
   try {
     const email = (req.body.email || "").trim().toLowerCase();
     const user = email ? await User.findOne({ email }) : null;
+    if (!user) return res.status(404).json({ success: false, message: "User not found." });
+    if (user.isVerified) return res.status(200).json({ success: true, message: "E-mail is already verified." });
 
-    if (!user) {
-      return res
-        .status(404)
-        .json({ success: false, message: "User not found." });
-    }
-    if (user.isVerified) {
-      return res
-        .status(200)
-        .json({ success: true, message: "E-mail is already verified." });
-    }
     const now = Date.now();
-    const lastSent = user.lastOtpSentAt
-      ? new Date(user.lastOtpSentAt).getTime()
-      : 0;
-    const cooldown = 60 * 1000; // 60 seconds
-    const diff = now - lastSent;
-    
-
-    if (diff < cooldown) {
-      const wait = Math.ceil((cooldown - diff) / 1000);
-      return res.status(429).json({
-        success: false,
-        message: `Please wait ${wait} seconds before resending OTP.`,
-      });
+    const last = user.lastOtpSentAt ? new Date(user.lastOtpSentAt).getTime() : 0;
+    if (now - last < 60_000) {
+      const wait = Math.ceil((60_000 - (now - last)) / 1000);
+      return res.status(429).json({ success: false, message: `Please wait ${wait} seconds before resending OTP.` });
     }
 
     const otp = String(crypto.randomInt(100000, 1000000));
-    const hashedOTP = await bcrypt.hash(otp, 10);
-
-    user.emailVerificationOTP = hashedOTP;
+    user.emailVerificationOTP = await bcrypt.hash(otp, 10);
     user.emailVerificationExpires = new Date(Date.now() + 15 * 60 * 1000);
-        user.lastOtpSentAt = new Date(); 
+    user.lastOtpSentAt = new Date();
     await user.save();
 
     await sendEmail(
       email,
       "OTP for Verification",
-      `Your new Campus Vibe verification code is ${otp}. It expires in 15 minutes.`
+      `Your new Campus Vibe verification code is ${otp}.\nThis code expires in 15 minutes.`
     );
 
     return res.json({ success: true, message: "OTP re-sent to email." });
   } catch (error) {
+    console.error("resendVerificationOTP error:", error);
     return res.status(500).json({ success: false, message: "Server error" });
   }
 };

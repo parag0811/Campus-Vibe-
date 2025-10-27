@@ -1,36 +1,34 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import styles from "./verify.module.css";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5000";
-const USER_API = `${API_BASE.replace(/\/$/, "")}/user`;
 
 export default function VerifyEmailPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const initialEmail = useMemo(() => {
-    const mail = (searchParams.get("email") || "").trim().toLowerCase();
-    return mail;
-  }, [searchParams]);
+  const initialEmail = useMemo(
+    () => (searchParams.get("email") || "").trim().toLowerCase(),
+    [searchParams]
+  );
 
   const [email] = useState(initialEmail);
   const [otp, setOtp] = useState("");
   const [cooldown, setCooldown] = useState(0);
+  const [hasSent, setHasSent] = useState(false);
   const [loadingSend, setLoadingSend] = useState(false);
   const [loadingVerify, setLoadingVerify] = useState(false);
   const [message, setMessage] = useState({ type: "info", text: "" });
 
   const timerRef = useRef(null);
+  const otpInputRef = useRef(null);
 
-  // If no email in URL, push back to register
   useEffect(() => {
     if (!email) router.replace("/register");
   }, [email, router]);
 
-  // Cooldown timer ticks
   useEffect(() => {
     if (cooldown <= 0) return;
     timerRef.current = setInterval(() => {
@@ -45,56 +43,35 @@ export default function VerifyEmailPage() {
     return () => clearInterval(timerRef.current);
   }, [cooldown]);
 
-  const handleSend = async () => {
-    if (!email) return;
-    setLoadingSend(true);
-    setMessage({ type: "info", text: "" });
-    try {
-      const res = await fetch(`${USER_API}/send-email-otp`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        // For 429, try to extract seconds from message
-        let cd = 60;
-        const m = (data?.message || "").match(/(\d+)\s*seconds?/i);
-        if (m) cd = parseInt(m[1], 10);
-        if (res.status === 429) setCooldown(cd);
-        throw new Error(data?.message || "Failed to send OTP");
-      }
-      setMessage({ type: "success", text: "OTP sent to your email. Check inbox/spam." });
-      setCooldown(60); // server cooldown matches 60s
-    } catch (e) {
-      setMessage({ type: "error", text: e.message || "Could not send OTP" });
-    } finally {
-      setLoadingSend(false);
-    }
-  };
-
-  const handleResend = async () => {
+  const handleSendOrResend = async () => {
     if (!email || cooldown > 0) return;
     setLoadingSend(true);
     setMessage({ type: "info", text: "" });
+
+    const endpoint = hasSent ? "/auth/resend-email-otp" : "/auth/send-email-otp";
     try {
-      const res = await fetch(`${USER_API}/resend-email-otp`, {
+      const res = await fetch(`${API_BASE}${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         let cd = 60;
         const m = (data?.message || "").match(/(\d+)\s*seconds?/i);
-        if (m) cd = parseInt(m[1], 10);
+        if (res.status === 429 && m) cd = parseInt(m[1], 10);
         if (res.status === 429) setCooldown(cd);
-        throw new Error(data?.message || "Failed to resend OTP");
+        throw new Error(data?.message || "Failed to send OTP");
       }
-      setMessage({ type: "success", text: "OTP re-sent. Please check your email." });
+      setHasSent(true);
+      setMessage({
+        type: "success",
+        text: hasSent ? "OTP re-sent. Check your email." : "OTP sent. Check your email.",
+      });
       setCooldown(60);
+      setTimeout(() => otpInputRef.current?.focus(), 60);
     } catch (e) {
-      setMessage({ type: "error", text: e.message || "Could not resend OTP" });
+      setMessage({ type: "error", text: e.message || "Could not send OTP" });
     } finally {
       setLoadingSend(false);
     }
@@ -103,23 +80,21 @@ export default function VerifyEmailPage() {
   const handleVerify = async (e) => {
     e.preventDefault();
     if (!email || !otp || otp.length !== 6) {
-      setMessage({ type: "error", text: "Enter the 6‑digit OTP." });
+      setMessage({ type: "error", text: "Enter the 6-digit OTP." });
       return;
     }
     setLoadingVerify(true);
     setMessage({ type: "info", text: "" });
     try {
-      const res = await fetch(`${USER_API}/verify-email-otp`, {
+      const res = await fetch(`${API_BASE}/auth/verify-email-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, otp }),
       });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data?.message || "Verification failed");
-      }
-      setMessage({ type: "success", text: "Email verified successfully. Redirecting to login..." });
-      setTimeout(() => router.replace("/login"), 1000);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.message || "Verification failed");
+      setMessage({ type: "success", text: "Email verified. Redirecting to login..." });
+      setTimeout(() => router.replace("/login"), 900);
     } catch (e) {
       setMessage({ type: "error", text: e.message || "Verification failed" });
     } finally {
@@ -127,17 +102,16 @@ export default function VerifyEmailPage() {
     }
   };
 
-  const maskedEmail = useMemo(() => {
-    if (!email) return "";
-    const [u, d] = email.split("@");
-    if (!u || !d) return email;
-    const m = u.length <= 2 ? u[0] + "*" : u[0] + "*".repeat(Math.max(1, u.length - 2)) + u[u.length - 1];
-    return `${m}@${d}`;
-  }, [email]);
+  const buttonLabel =
+    cooldown > 0
+      ? `${hasSent ? "Resend OTP" : "Send OTP"} (${cooldown}s)`
+      : hasSent
+      ? "Resend OTP"
+      : "Send OTP";
 
   return (
     <div className={styles.wrapper}>
-      <div className={styles.leftPane}>
+      <div className={styles.card}>
         <div className={styles.brand}>
           <span className={styles.brandPrimary}>Campus</span>
           <span className={styles.brandAccent}> Vibe</span>
@@ -145,7 +119,7 @@ export default function VerifyEmailPage() {
 
         <h1 className={styles.title}>Verify your email</h1>
         <p className={styles.subtitle}>
-          We’ve sent a 6‑digit code to your email. Please verify to continue.
+          Enter the 6‑digit code sent to your email address.
         </p>
 
         <form className={styles.form} onSubmit={handleVerify}>
@@ -159,17 +133,12 @@ export default function VerifyEmailPage() {
               readOnly
               aria-readonly="true"
             />
-            <div className={styles.helper}>
-              Not you?{" "}
-              <Link className={styles.link} href="/register">
-                Change email
-              </Link>
-            </div>
           </div>
 
           <div className={styles.formGroup}>
             <label htmlFor="otp" className={styles.label}>Enter OTP</label>
             <input
+              ref={otpInputRef}
               id="otp"
               inputMode="numeric"
               pattern="[0-9]*"
@@ -182,19 +151,11 @@ export default function VerifyEmailPage() {
             <div className={styles.actionsRow}>
               <button
                 type="button"
-                onClick={handleSend}
+                onClick={handleSendOrResend}
                 disabled={loadingSend || cooldown > 0}
                 className={styles.secondaryBtn}
               >
-                {loadingSend ? "Sending..." : cooldown > 0 ? `Send OTP (${cooldown}s)` : "Send OTP"}
-              </button>
-              <button
-                type="button"
-                onClick={handleResend}
-                disabled={loadingSend || cooldown > 0}
-                className={styles.ghostBtn}
-              >
-                Resend
+                {loadingSend ? (hasSent ? "Resending..." : "Sending...") : buttonLabel}
               </button>
             </div>
           </div>
@@ -218,24 +179,7 @@ export default function VerifyEmailPage() {
           <button type="submit" className={styles.primaryBtn} disabled={loadingVerify}>
             {loadingVerify ? "Verifying..." : "Verify Email"}
           </button>
-
-          <div className={styles.footerLinks}>
-            <span>Didn’t get the email to {maskedEmail}? Check spam or resend.</span>
-            <div>
-              <Link className={styles.link} href="/login">
-                Back to Login
-              </Link>
-            </div>
-          </div>
         </form>
-      </div>
-
-      <div className={styles.rightPane}>
-        <div className={styles.rightOverlay} />
-        <div className={styles.rightContent}>
-          <h2 className={styles.rightTitle}>Almost there</h2>
-          <p className={styles.rightText}>Verify your email to start exploring events.</p>
-        </div>
       </div>
     </div>
   );
