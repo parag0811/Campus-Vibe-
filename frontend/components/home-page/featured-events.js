@@ -1,9 +1,11 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import styles from "./featured-events.module.css";
-import eventcard from "@/assets/eventcard.png";
 
-const EventCard = ({ image, title, location, date, time, type }) => {
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+
+const EventCard = ({ image, title, date, time, type }) => {
   return (
     <div className={styles.cardWrapper}>
       <div className={styles.card}>
@@ -24,77 +26,57 @@ const EventCard = ({ image, title, location, date, time, type }) => {
 };
 
 export default function UpcomingEvents() {
-  const [events, setEvents] = useState([
-    {
-      id: 1,
-      image: eventcard,
-      title: "BestSeller Book Bootcamp - Write, Market & Publish Your Book",
-      location: "Lucknow",
-      date: "Saturday, March 18",
-      time: "3:30PM",
-      type: "ONLINE EVENT",
-    },
-    {
-      id: 2,
-      image: eventcard,
-      title: "BestSeller Book Bootcamp - Write, Market & Publish Your Book",
-      location: "Lucknow",
-      date: "Saturday, March 18",
-      time: "3:30PM",
-      type: "ONLINE EVENT",
-    },
-    {
-      id: 3,
-      image: eventcard,
-      title: "BestSeller Book Bootcamp - Write, Market & Publish Your Book",
-      location: "Lucknow",
-      date: "Saturday, March 18",
-      time: "3:30PM",
-      type: "ONLINE EVENT",
-    },
-    {
-      id: 4,
-      image: eventcard,
-      title: "BestSeller Book Bootcamp - Write, Market & Publish Your Book",
-      location: "Lucknow",
-      date: "Saturday, March 18",
-      time: "3:30PM",
-      type: "ONLINE EVENT",
-    },
-    {
-      id: 5,
-      image: eventcard,
-      title: "BestSeller Book Bootcamp - Write, Market & Publish Your Book",
-      location: "Lucknow",
-      date: "Saturday, March 18",
-      time: "3:30PM",
-      type: "ONLINE EVENT",
-    },
-    {
-      id: 6,
-      image: eventcard,
-      title: "BestSeller Book Bootcamp - Write, Market & Publish Your Book",
-      location: "Lucknow",
-      date: "Saturday, March 18",
-      time: "3:30PM",
-      type: "ONLINE EVENT",
-    },
-    {
-      id: 7,
-      image: eventcard,
-      title: "BestSeller Book Bootcamp - Write, Market & Publish Your Book",
-      location: "Lucknow",
-      date: "Saturday, March 18",
-      time: "3:30PM",
-      type: "ONLINE EVENT",
-    },
-  ]);
+  const [events, setEvents] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const [visibleEvents, setVisibleEvents] = useState(6);
+  useEffect(() => {
+    let cancel = false;
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/events`, {
+          credentials: "include",
+        });
+        if (!res.ok) {
+          // 404 => no events currently; keep empty list
+          setEvents([]);
+          return;
+        }
+        const data = await res.json();
+        const list = Array.isArray(data?.events) ? data.events : [];
 
-  const loadMore = () => {
-    setVisibleEvents((prevVisible) => prevVisible + 6);
-  };
+        const fmt = (d, opts) =>
+          new Date(d).toLocaleString(undefined, opts);
+
+        const mapped = list.slice(0, 12).map((ev) => {
+          const start = ev.start_date || ev.createdAt || Date.now();
+          const date = fmt(start, {
+            weekday: "long",
+            month: "long",
+            day: "numeric",
+          });
+          const time = fmt(start, { hour: "numeric", minute: "2-digit" });
+          const mode = (ev.mode || "Online").toString().toUpperCase();
+          return {
+            id: ev._id,
+            image: ev.imageUrl || "/default-event.jpg",
+            title: ev.title || "Untitled event",
+            date,
+            time,
+            type: `${mode} EVENT`,
+          };
+        });
+
+        if (!cancel) setEvents(mapped);
+      } catch {
+        if (!cancel) setEvents([]);
+      } finally {
+        if (!cancel) setLoading(false);
+      }
+    })();
+    return () => {
+      cancel = true;
+    };
+  }, []);
 
   return (
     <div className={styles.container}>
@@ -104,27 +86,30 @@ export default function UpcomingEvents() {
         </h2>
       </div>
 
-      <div className={styles.eventsGrid}>
-        {events.slice(0, visibleEvents).map((event) => (
-          <EventCard
-            key={event.id}
-            image={event.image.src}
-            title={event.title}
-            location={event.location}
-            date={event.date}
-            time={event.time}
-            type={event.type}
-          />
-        ))}
-      </div>
-
-      {visibleEvents < events.length && (
-        <div className={styles.loadMoreContainer}>
-          <button className={styles.loadMoreButton} onClick={loadMore}>
-            Load more...
-          </button>
+      {loading ? (
+        <div>Loading...</div>
+      ) : events.length === 0 ? (
+        <div>No events available right now.</div>
+      ) : (
+        <div className={styles.eventsGrid}>
+          {events.map((event) => (
+            <EventCard
+              key={event.id}
+              image={event.image}
+              title={event.title}
+              date={event.date}
+              time={event.time}
+              type={event.type}
+            />
+          ))}
         </div>
       )}
+
+      <div className={styles.loadMoreContainer}>
+        <Link href="/events" className={styles.loadMoreButton}>
+          Explore more
+        </Link>
+      </div>
     </div>
   );
 }

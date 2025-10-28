@@ -1,0 +1,134 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap");
+
+.container {
+  width: 100%;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0 16px;
+}
+
+/* Hero */
+.hero {
+  font-family: "Inter", system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial;
+  padding: 64px 0 80px;
+  text-align: center;
+  background: linear-gradient(180deg, #fff 0%, #faf7ff 100%);
+  border-bottom: 1px solid #f1f5f9;
+}
+.title {
+  font-size: 42px;
+  line-height: 1.15;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 16px; /* more space before subtitle */
+  letter-spacing: 0.2px;
+}
+.subtitle {
+  margin: 0 auto;
+  color: #475569;
+  max-width: 780px;
+  font-size: 16px;
+}
+.heroActions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 26px;
+}
+
+/* Buttons */
+.btn {
+  height: 44px;
+  padding: 0 16px;
+  border-radius: 10px;
+  font-weight: 700;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.primaryBtn { background: #7c3aed; color: #fff; border: 1px solid #6d28d9; }
+.secondaryBtn { background: #f3e8ff; color: #5b21b6; border: 1px solid #e9d5ff; }
+
+/* Features */
+.features {
+  font-family: "Inter", system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial;
+  background: #ffffff;
+  padding: 56px 0 64px;
+}
+.sectionTitle {
+  font-size: 28px;
+  line-height: 1.2;
+  font-weight: 800;
+  color: #0f172a;
+  text-align: center;
+  margin: 0 0 14px; /* more space before sectionLead */
+}
+.sectionLead {
+  color: #475569;
+  text-align: center;
+  margin: 0 0 28px; /* more space before grid */
+}
+.featureGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+.featureCard {
+  background: #fff;
+  border: 1px solid #eef;
+  border-radius: 12px;
+  padding: 18px;
+}
+.featureIcon { font-size: 22px; margin-bottom: 8px; }
+.featureTitle { font-weight: 700; color: #0f172a; margin: 0 0 6px; }
+.featureText { color: #475569; margin: 0; font-size: 14px; }
+
+/* How it works */
+.howItWorks {
+  font-family: "Inter", system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial;
+  background: #fff;
+  padding: 56px 0; /* comfortable vertical rhythm */
+}
+.steps {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  max-width: 760px;
+  margin: 0 auto;
+  list-style: none;
+  padding: 0;
+}
+.step {
+  display: grid;
+  grid-template-columns: 36px 1fr;
+  gap: 12px;
+  align-items: start;
+  border: 1px solid #eef;
+  border-radius: 12px;
+  padding: 12px;
+  background: #fff;
+}
+.stepBadge {
+  height: 36px;
+  width: 36px;
+  border-radius: 10px;
+  background: #f3e8ff;
+  color: #5b21b6;
+  display: inline-grid;
+  place-items: center;
+  font-weight: 800;
+}
+.stepTitle { margin: 0 0 4px; font-weight: 700; color: #0f172a; }
+.stepText { margin: 0; color: #475569; }
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .title { font-size: 36px; }
+  .featureGrid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 640px) {
+  .heroActions { flex-direction: column; }
+  .featureGrid { grid-template-columns: 1fr; }
+  .title { font-size: 32px; }
+}
