@@ -16,7 +16,7 @@ export default function EventCreation() {
           <p className={styles.bannerDesc}>
             Lorem ipsum dolor sit amet, consectetur adipiscing elit.
           </p>
-          <Link href="/create-event" className={styles.createEventBtn}>
+          <Link href="/create-organisation" className={styles.createEventBtn}>
             Create Events
           </Link>
         </div>

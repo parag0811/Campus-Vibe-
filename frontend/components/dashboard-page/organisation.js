@@ -98,6 +98,12 @@ const CreateClub = () => {
     e.preventDefault();
     setValidationErrors({});
 
+    if (!hasOrganisation) {
+      showAlert("info", "Create an organisation to continue.");
+      window.location.href = "/create-organisation";
+      return;
+    }
+
     const form = new FormData();
     form.append("name", formData.title);
     form.append("description", formData.description);
@@ -107,14 +113,8 @@ const CreateClub = () => {
     try {
       showAlert("info", "Processing your request...");
 
-      const endpoint = hasOrganisation
-        ? "http://localhost:5000/organisationAdmin/update-organisation-detail"
-        : "http://localhost:5000/organisationAdmin/create-organisation";
-
-      const method = hasOrganisation ? "PUT" : "POST";
-
-      const res = await fetch(endpoint, {
-        method,
+      const res = await fetch(`${API_BASE}/organisationAdmin/update-organisation-detail`, {
+        method: "PUT",
         credentials: "include",
         body: form,
       });
@@ -123,19 +123,12 @@ const CreateClub = () => {
 
       if (res.ok) {
         showAlert("success", data.message || "Organisation saved!");
-        if (!hasOrganisation) {
-          setHasOrganisation(true);
-        }
-        if (!profileImage && imagePreview) {
-          setImagePreview(imagePreview);
-        }
+        if (!profileImage && imagePreview) setImagePreview(imagePreview);
       } else {
         if (Array.isArray(data.data)) {
           const errorMap = {};
           data.data.forEach((err) => {
-            if (!errorMap[err.path]) {
-              errorMap[err.path] = err.msg;
-            }
+            if (!errorMap[err.path]) errorMap[err.path] = err.msg;
           });
           setValidationErrors(errorMap);
         } else {
@@ -150,7 +143,6 @@ const CreateClub = () => {
 
   const [deleting, setDeleting] = useState(false);
 
-  // Delete functionality function 
   const handleDeleteOrganisation = async () => {
     if (!window.confirm("Are you sure you want to delete your organisation? This action cannot be undone.")) {
       return;
