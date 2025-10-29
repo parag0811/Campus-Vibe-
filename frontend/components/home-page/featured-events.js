@@ -5,22 +5,28 @@ import styles from "./featured-events.module.css";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
-const EventCard = ({ image, title, date, time, type }) => {
+const EventCard = ({ id, image, title, date, time, orgName }) => {
   return (
     <div className={styles.cardWrapper}>
-      <div className={styles.card}>
-        <div className={styles.imageContainer}>
-          <img src={image} alt={title} className={styles.image} />
-          <span className={styles.freeTag}>FREE</span>
+      <Link
+        href={`/events/${id}`}
+        className={styles.cardLink}
+        aria-label={`${title} details`}
+      >
+        <div className={styles.card}>
+          <div className={styles.imageContainer}>
+            <img src={image} alt={title} className={styles.image} />
+            <span className={styles.freeTag}>FREE</span>
+          </div>
+          <div className={styles.cardContent}>
+            <h3 className={styles.eventTitle}>{title}</h3>
+            <p className={styles.eventDate}>
+              {date}, {time}
+            </p>
+            <p className={styles.eventType}>{orgName || "Organisation"}</p>
+          </div>
         </div>
-        <div className={styles.cardContent}>
-          <h3 className={styles.eventTitle}>{title}</h3>
-          <p className={styles.eventDate}>
-            {date}, {time}
-          </p>
-          <p className={styles.eventType}>{type} - Attend anywhere</p>
-        </div>
-      </div>
+      </Link>
     </div>
   );
 };
@@ -33,36 +39,27 @@ export default function UpcomingEvents() {
     let cancel = false;
     (async () => {
       try {
-        const res = await fetch(`${API_BASE}/events`, {
-          credentials: "include",
-        });
+        const res = await fetch(`${API_BASE}/events`, { credentials: "include" });
         if (!res.ok) {
-          // 404 => no events currently; keep empty list
           setEvents([]);
           return;
         }
         const data = await res.json();
         const list = Array.isArray(data?.events) ? data.events : [];
 
-        const fmt = (d, opts) =>
-          new Date(d).toLocaleString(undefined, opts);
+        const fmt = (d, opts) => new Date(d).toLocaleString(undefined, opts);
 
         const mapped = list.slice(0, 12).map((ev) => {
           const start = ev.start_date || ev.createdAt || Date.now();
-          const date = fmt(start, {
-            weekday: "long",
-            month: "long",
-            day: "numeric",
-          });
+          const date = fmt(start, { weekday: "long", month: "long", day: "numeric" });
           const time = fmt(start, { hour: "numeric", minute: "2-digit" });
-          const mode = (ev.mode || "Online").toString().toUpperCase();
           return {
             id: ev._id,
             image: ev.imageUrl || "/default-event.jpg",
             title: ev.title || "Untitled event",
             date,
             time,
-            type: `${mode} EVENT`,
+            orgName: ev?.organisation?.name || ev?.created_by_organisation?.name || "Organisation",
           };
         });
 
@@ -95,11 +92,12 @@ export default function UpcomingEvents() {
           {events.map((event) => (
             <EventCard
               key={event.id}
+              id={event.id}
               image={event.image}
               title={event.title}
               date={event.date}
               time={event.time}
-              type={event.type}
+              orgName={event.orgName}
             />
           ))}
         </div>

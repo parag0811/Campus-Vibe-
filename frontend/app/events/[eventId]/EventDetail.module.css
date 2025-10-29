@@ -1,15 +1,8 @@
-/* Global Styles */
-/* * {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-} */
-
 .container {
   font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto",
     sans-serif;
   min-height: 100vh;
-  background-color: #f8f9fa;
+  padding-top: 2vh;
 }
 
 /* Loading and Error States */
@@ -123,29 +116,82 @@
 
 /* Hero Section */
 .heroSection {
-  background: linear-gradient(
-      135deg,
-      rgba(139, 92, 246, 0.9),
-      rgba(236, 72, 153, 0.9)
-    ),
-    url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 600"><rect fill="%23667eea" width="1000" height="600"/><circle fill="%23764ba2" cx="200" cy="150" r="80"/><circle fill="%23f093fb" cx="800" cy="400" r="120"/><circle fill="%23a8edea" cx="400" cy="300" r="60"/></svg>');
+  width: 85%;
+  margin: auto;
+  height: 50vh;
+  min-height: 350px;
   background-size: cover;
   background-position: center;
-  min-height: 500px;
-  display: flex;
-  align-items: center;
-  padding: 2rem;
-  position: relative;
+  background-repeat: no-repeat;
+  border-radius: 12px;
 }
 
-.heroContent {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 3rem;
-  max-width: 1200px;
-  margin: 0 auto;
-  width: 100%;
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 6px 0 10px;
+  justify-content: flex-start; 
 }
+
+.backBtnPurple {
+  background: #7c3aed;
+  border: 1px solid #6d28d9;
+  color: #fff;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.organiserCard {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0;            
+  border: none;           
+  background: transparent;
+  width: fit-content;
+}
+
+.orgSection { margin: 4px 0 12px; }
+
+.orgAvatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
+  background: #f3f4f6;
+  display: grid;
+  place-items: center;
+}
+
+.orgAvatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.orgAvatarFallback {
+  color: #7c3aed;
+  font-weight: 800;
+}
+
+.orgMeta { display: flex; flex-direction: column; line-height: 1.15; }
+.orgName { font-weight: 700; color: #0f172a; }
+.orgEmail { color: #475569; font-size: 13px; }
+
+/* Title typography */
+.headerTitle {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.2;
+}
+
+.heroContent { display: none !important; }
 
 .heroLeft {
   display: flex;
@@ -167,10 +213,9 @@
 }
 
 .heroTitle {
-  font-size: 3rem;
+  font-size: 5rem;
   font-weight: 700;
   margin-bottom: 2rem;
-  line-height: 1.1;
   text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
 }
 

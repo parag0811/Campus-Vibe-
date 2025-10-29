@@ -6,12 +6,9 @@ import { useToast } from "@/components/common/toast";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
-const EventCard = ({ id, image, title, date, time, type }) => {
+const EventCard = ({ id, image, title, date, time, orgName }) => {
   const router = useRouter();
-
-  const handleClick = () => {
-    router.push(`/events/${id}`);
-  };
+  const handleClick = () => router.push(`/events/${id}`);
 
   return (
     <div className={styles.cardWrapper} onClick={handleClick}>
@@ -24,7 +21,7 @@ const EventCard = ({ id, image, title, date, time, type }) => {
           <p className={styles.eventDate}>
             {date}, {time}
           </p>
-          <p className={styles.eventType}>{type ? `${type} - Attend anywhere` : "Attend anywhere"}</p>
+          <p className={styles.eventType}>{orgName || "Organisation"}</p>
         </div>
       </div>
     </div>
@@ -45,17 +42,30 @@ export default function AllEvents() {
         const data = await response.json();
 
         if (!response.ok) {
-          // If backend says "no events", show that message in UI, not as toast
           if (response.status === 404 && data.message) {
             setEvents([]);
             setNoEventsMessage(data.message);
             return;
           }
-          // For other errors, show toast
           throw new Error(data.message || "Unable to load events. Please try again later.");
         }
 
-        setEvents(data.events || []);
+        const list = Array.isArray(data?.events) ? data.events : [];
+        const fmt = (d, opts) => new Date(d).toLocaleString(undefined, opts);
+
+        const mapped = list.map((ev) => {
+          const start = ev.start_date || ev.createdAt || Date.now();
+          return {
+            id: ev._id,
+            image: ev.imageUrl || "/default-event.jpg",
+            title: ev.title || "Untitled event",
+            date: fmt(start, { weekday: "long", month: "long", day: "numeric" }),
+            time: fmt(start, { hour: "numeric", minute: "2-digit" }),
+            orgName: ev?.organisation?.name || ev?.created_by_organisation?.name || "Organisation",
+          };
+        });
+
+        setEvents(mapped);
       } catch (err) {
         setNoEventsMessage("");
         toast.error(err.message || "Unable to load events. Please try again later.");
@@ -63,13 +73,9 @@ export default function AllEvents() {
     };
 
     fetchEvents();
-    // Only run once on mount
-    // eslint-disable-next-line
   }, []);
 
-  const loadMore = () => {
-    setVisibleEvents((prevVisible) => prevVisible + 6);
-  };
+  const loadMore = () => setVisibleEvents((prev) => prev + 6);
 
   return (
     <div className={styles.container}>
@@ -80,37 +86,27 @@ export default function AllEvents() {
       </div>
 
       <div className={styles.eventsGrid}>
-        {noEventsMessage && (
-          <div className={styles.noEventsMessage}>
-            {noEventsMessage}
-          </div>
-        )}
+        {noEventsMessage && <div className={styles.noEventsMessage}>{noEventsMessage}</div>}
         {events.length === 0 && !noEventsMessage && (
-          <div className={styles.noEventsMessage}>
-            No events found.
-          </div>
+          <div className={styles.noEventsMessage}>No events found.</div>
         )}
+
         {events.slice(0, visibleEvents).map((event) => (
           <EventCard
-            id={event._id}
-            key={event._id}
+            key={event.id}
+            id={event.id}
             image={event.image}
             title={event.title}
-            location={event.location}
             date={event.date}
             time={event.time}
-            type={event.type}
+            orgName={event.orgName}
           />
         ))}
       </div>
 
-      {/* Pagination or Load More */}
       {events.length > visibleEvents && (
         <div className={styles.paginationContainer}>
-          <button
-            className={styles.paginationButton}
-            onClick={loadMore}
-          >
+          <button className={styles.paginationButton} onClick={loadMore}>
             Load More
           </button>
         </div>

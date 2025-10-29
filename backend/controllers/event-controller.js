@@ -8,9 +8,25 @@ const { GetObjectCommand } = require("@aws-sdk/client-s3");
 const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
 const s3 = require("../middleware/s3Client.js");
 
+const orgPublicSelect = "name contact_email image"; // safe public fields
+
+const signOrNull = async (key) => {
+  if (!key) return null;
+  try {
+    const cmd = new GetObjectCommand({ Bucket: process.env.BUCKET_NAME, Key: key });
+    return await getSignedUrl(s3, cmd, { expiresIn: 60 * 5 });
+  } catch (_) {
+    return null;
+  }
+};
+
 exports.getEvents = async (req, res, next) => {
   try {
-    const events = await Event.find();
+    // populate organisation; do NOT populate admin
+    const events = await Event.find()
+      .populate({ path: "created_by_organisation", select: orgPublicSelect })
+      .lean();
+
     if (!events || events.length === 0) {
       return res.status(404).json({
         success: false,
@@ -18,31 +34,35 @@ exports.getEvents = async (req, res, next) => {
       });
     }
 
-    // Attach signed URLs (5 min)
-    for (let ev of events) {
-      if (ev.posterImage) {
-        const command = new GetObjectCommand({
-          Bucket: process.env.BUCKET_NAME,
-          Key: ev.posterImage,
-        });
-        const signedUrl = await getSignedUrl(s3, command, { expiresIn: 60 * 5 });
-        ev.imageUrl = signedUrl;
-      }
+    for (const ev of events) {
+      ev.imageUrl = await signOrNull(ev.posterImage);
+      const org = ev.created_by_organisation || {};
+      const orgLogoUrl = await signOrNull(org.image);
+      ev.organisation = {
+        _id: org?._id,
+        name: org?.name || null,
+        contact_email: org?.contact_email || null,
+        logoUrl: orgLogoUrl,
+      };
+
+      // clean up
+      delete ev.created_by_admin;
     }
 
     return res.status(200).json({ events });
   } catch (err) {
-    if (!err.statusCode) {
-      err.statusCode = 500;
-    }
+    if (!err.statusCode) err.statusCode = 500;
     next(err);
   }
 };
 
 exports.getEventDetail = async (req, res, next) => {
   try {
-    const eventId  = req.params.eventId;
-    const event = await Event.findById(eventId);
+    const eventId = req.params.eventId;
+
+    const event = await Event.findById(eventId)
+      .populate({ path: "created_by_organisation", select: orgPublicSelect })
+      .lean();
 
     if (!event) {
       const error = new Error("Event not available.");
@@ -50,22 +70,27 @@ exports.getEventDetail = async (req, res, next) => {
       throw error;
     }
 
-    // Attach signed URL
-    const eventObj = event.toObject();
-    if (eventObj.posterImage) {
-      const command = new GetObjectCommand({
-        Bucket: process.env.BUCKET_NAME,
-        Key: eventObj.posterImage,
-      });
-      const signedUrl = await getSignedUrl(s3, command, { expiresIn: 60 * 5 });
-      eventObj.imageUrl = signedUrl;
-    }
+    const posterSigned = await signOrNull(event.posterImage);
+
+    const org = event.created_by_organisation || {};
+    const orgLogoUrl = await signOrNull(org.image);
+
+    const eventObj = {
+      ...event,
+      imageUrl: posterSigned,
+      organisation: {
+        _id: org?._id,
+        name: org?.name || null,
+        contact_email: org?.contact_email || null,
+        logoUrl: orgLogoUrl,
+      },
+    };
+
+    delete eventObj.created_by_admin;
 
     return res.status(200).json({ event: eventObj });
   } catch (err) {
-    if (!err.statusCode) {
-      err.statusCode = 500;
-    }
+    if (!err.statusCode) err.statusCode = 500;
     next(err);
   }
 };
@@ -135,7 +160,7 @@ exports.getMyEvents = async (req, res, next) => {
     }
 
     const events = await Event.find({ attendees: userId })
-      .populate("created_by_organisation", "name")
+      .populate("created_by_organisation", orgPublicSelect)
       .lean();
 
     const now = new Date();
@@ -153,27 +178,22 @@ exports.getMyEvents = async (req, res, next) => {
       }
     });
 
-    // Attach signed URLs
-    for (let ev of upcoming) {
-      if (ev.posterImage) {
-        const command = new GetObjectCommand({
-          Bucket: process.env.BUCKET_NAME,
-          Key: ev.posterImage,
-        });
-        const signedUrl = await getSignedUrl(s3, command, { expiresIn: 60 * 5 });
-        ev.imageUrl = signedUrl;
-      }
-    }
-    for (let ev of past) {
-      if (ev.posterImage) {
-        const command = new GetObjectCommand({
-          Bucket: process.env.BUCKET_NAME,
-          Key: ev.posterImage,
-        });
-        const signedUrl = await getSignedUrl(s3, command, { expiresIn: 60 * 5 });
-        ev.imageUrl = signedUrl;
-      }
-    }
+    // enrich with poster + org
+    const addMediaAndOrg = async (ev) => {
+      ev.imageUrl = await signOrNull(ev.posterImage);
+      const org = ev.created_by_organisation || {};
+      ev.organisation = {
+        _id: org?._id,
+        name: org?.name || null,
+        contact_email: org?.contact_email || null,
+        logoUrl: await signOrNull(org.image),
+      };
+      delete ev.created_by_admin;
+      return ev;
+    };
+
+    for (let i = 0; i < upcoming.length; i++) upcoming[i] = await addMediaAndOrg(upcoming[i]);
+    for (let i = 0; i < past.length; i++) past[i] = await addMediaAndOrg(past[i]);
 
     return res.status(200).json({ success: true, data: { upcoming, past } });
   } catch (err) {

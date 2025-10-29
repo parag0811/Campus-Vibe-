@@ -27,8 +27,32 @@ const EventDetailPage = () => {
             data.message || `Failed to fetch event: ${response.status}`
           );
         }
-        setEvent(data.event);
-        setOrganisation(data.event?.created_by_organisation);
+
+        const ev = data.event || {};
+        const posterUrl =
+          ev.imageUrl ||
+          (ev.posterImage && /^https?:\/\//i.test(ev.posterImage)
+            ? ev.posterImage
+            : null);
+
+        // derive organisation and ensure logo url
+        const org = ev.organisation || ev.created_by_organisation || null;
+        let orgLogoUrl = org?.logoUrl || null;
+        const rawKey = org?.image || ev?.created_by_organisation?.image || null;
+        if (!orgLogoUrl && rawKey) {
+          const bucket = process.env.NEXT_PUBLIC_S3_BUCKET;
+          const region = process.env.NEXT_PUBLIC_S3_REGION;
+          if (bucket && region) {
+            orgLogoUrl = `https://${bucket}.s3.${region}.amazonaws.com/${encodeURIComponent(
+              rawKey
+            )}`;
+          } else if (/^https?:\/\//i.test(rawKey)) {
+            orgLogoUrl = rawKey;
+          }
+        }
+
+        setEvent({ ...ev, posterUrl });
+        setOrganisation(org ? { ...org, logoUrl: orgLogoUrl } : null);
       } catch (err) {
         toast.error(
           err.message || "Something went wrong while fetching event details"
@@ -44,19 +68,13 @@ const EventDetailPage = () => {
     if (!eventId) return;
     try {
       setIsRegistering(true);
-      const response = await fetch(
-        `${API_BASE}/eventRegistration/${eventId}`,
-        {
-          method: "POST",
-          credentials: "include",
-        }
-      );
+      const response = await fetch(`${API_BASE}/eventRegistration/${eventId}`, {
+        method: "POST",
+        credentials: "include",
+      });
       const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message || "Registration failed");
-      }
+      if (!response.ok) throw new Error(data.message || "Registration failed");
       toast.success(data.message || "Registration successful!");
-      // Optionally refresh event data to show updated attendee count
     } catch (err) {
       toast.error(err.message || "Registration failed.");
     } finally {
@@ -82,7 +100,6 @@ const EventDetailPage = () => {
     const deadline = new Date(event.registeration_deadline);
     return now < deadline;
   };
-
   const isFree = () => event?.price === 0;
 
   if (loading) {
@@ -102,10 +119,7 @@ const EventDetailPage = () => {
         <div className={styles.errorContainer}>
           <h2>Event Not Found</h2>
           <p>The event you're looking for doesn't exist or has been removed.</p>
-          <button
-            onClick={() => router.back()}
-            className={styles.retryBtn}
-          >
+          <button onClick={() => router.back()} className={styles.retryBtn}>
             Go Back
           </button>
         </div>
@@ -115,36 +129,50 @@ const EventDetailPage = () => {
 
   return (
     <div className={styles.container}>
-      {/* Hero Section */}
       <section
         className={styles.heroSection}
         style={{
-          backgroundImage: event.posterImage
-            ? `linear-gradient(135deg, rgba(139, 92, 246, 0.8), rgba(236, 72, 153, 0.8)), url(${event.posterImage})`
-            : undefined,
+          backgroundImage: event.posterUrl ? `url(${event.posterUrl})` : "none",
         }}
-      >
-        <div className={styles.heroContent}>
-          <div className={styles.heroLeft}>
-            <button className={styles.backBtn} onClick={() => router.back()}>
-              ← Back
-            </button>
-            <h1 className={styles.heroTitle}>{event.title}</h1>
-            <div className={styles.organizerInfo}>
-              <h3 className={styles.organizerName}>
-                {organisation?.name || "Event Organizer"}
-              </h3>
-              <p className={styles.organizerDesc}>{event.description}</p>
-            </div>
-            <button className={styles.viewMapBtn}>📍 {event.venue}</button>
-          </div>
-        </div>
-      </section>
+      />
 
       {/* Content Section */}
       <section className={styles.contentSection}>
         <div className={styles.contentWrapper}>
           <div className={styles.leftContent}>
+            <div className={styles.titleRow}>
+              <button
+                className={styles.backBtnPurple}
+                onClick={() => router.back()}
+              >
+                ← Back
+              </button>
+            </div>
+            <h1 className={styles.headerTitle}>{event.title}</h1>
+            <div className={styles.organiserCard + " " + styles.orgSection}>
+              <div className={styles.orgAvatar}>
+                {organisation?.logoUrl ? (
+                  <img
+                    src={organisation.logoUrl}
+                    alt={organisation?.name || "Organisation"}
+                  />
+                ) : (
+                  <div className={styles.orgAvatarFallback}>
+                    {organisation?.name?.[0] || "O"}
+                  </div>
+                )}
+              </div>
+              <div className={styles.orgMeta}>
+                <div className={styles.orgName}>
+                  {organisation?.name || "Event Organizer"}
+                </div>
+                {organisation?.contact_email && (
+                  <div className={styles.orgEmail}>
+                    {organisation.contact_email}
+                  </div>
+                )}
+              </div>
+            </div>
             <div className={styles.descriptionSection}>
               <h2 className={styles.sectionTitle}>Description</h2>
               <div className={styles.descriptionText}>
@@ -152,13 +180,15 @@ const EventDetailPage = () => {
               </div>
             </div>
 
+            {/* Event details */}
             <div className={styles.eventDetailsSection}>
               <h2 className={styles.sectionTitle}>Event Details</h2>
               <div className={styles.eventDetails}>
                 <div className={styles.detailItem}>
                   <span className={styles.detailLabel}>Mode:</span>
                   <span className={styles.detailValue}>
-                    {event.mode.charAt(0).toUpperCase() + event.mode.slice(1)}
+                    {event.mode?.charAt(0).toUpperCase() +
+                      (event.mode?.slice(1) || "")}
                   </span>
                 </div>
                 <div className={styles.detailItem}>
@@ -198,6 +228,7 @@ const EventDetailPage = () => {
             </div>
           </div>
 
+          {/* Right side unchanged */}
           <div className={styles.rightContent}>
             <div className={styles.eventCard}>
               <div className={styles.dateTimeSection}>
@@ -205,12 +236,16 @@ const EventDetailPage = () => {
                 <p className={styles.eventDate}>
                   <strong>
                     {event.start_date && event.end_date
-                      ? `${formatDate(event.start_date)} to ${formatDate(event.end_date)}`
+                      ? `${formatDate(event.start_date)} to ${formatDate(
+                          event.end_date
+                        )}`
                       : formatDate(event.start_date)}
                   </strong>
                 </p>
                 <p className={styles.regDeadline}>
-                  <span style={{ fontWeight: 500 }}>Registration Deadline:</span>{" "}
+                  <span style={{ fontWeight: 500 }}>
+                    Registration Deadline:
+                  </span>{" "}
                   {formatDate(event.registeration_deadline)}
                 </p>
               </div>
@@ -230,8 +265,8 @@ const EventDetailPage = () => {
               <div className={styles.registrationInfo}>
                 {event.max_attendees && (
                   <p className={styles.availability}>
-                    {event.max_attendees - (event.attendees?.length || 0)}{" "}
-                    spots remaining
+                    {event.max_attendees - (event.attendees?.length || 0)} spots
+                    remaining
                   </p>
                 )}
               </div>
