@@ -2,8 +2,6 @@ const express = require("express");
 const mongoose = require("mongoose");
 const cookieParser = require("cookie-parser");
 const cors = require("cors");
-const helmet = require("helmet");
-const morgan = require("morgan");
 
 const dotenv = require("dotenv");
 dotenv.config();
@@ -13,43 +11,27 @@ const orgRoute = require("./routes/organisation-route.js");
 const orgAdminOwnerRoute = require("./routes/organisation-admin-owner-route.js");
 const eventUserRoute = require("./routes/event-user-route.js");
 const paymentRoutes = require("./routes/payment-route.js");
-const checkProfileCompleted = require("./middleware/completeProfile.js");
-const isAuth = require("./middleware/is-auth.js");
 
 const app = express();
 
 app.use(express.json());
 app.use(cookieParser());
-// app.use(helmet());
-// app.use(morgan("dev"));
+
+const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:3000";
 
 app.use(
   cors({
-    origin: "http://localhost:3000",
+    origin: CLIENT_URL,
     credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
   })
 );
 
-app.use((req, res, next) => {
-  res.setHeader("Access-Control-Allow-Origin", "http://localhost:3000");
-  res.setHeader(
-    "Access-Control-Allow-Methods",
-    "GET, POST, PUT, DELETE, PATCH"
-  );
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
-  res.setHeader("Access-Control-Allow-Credentials", "true");
-
-  if (req.method === "OPTIONS") {
-    return res.status(200).end();
-  }
-  next();
-});
-
 app.use("/auth", userRoute);
-app.use(orgRoute);
-app.use(orgAdminOwnerRoute);
-app.use(eventUserRoute);
-app.use(paymentRoutes)
+app.use("/org", orgRoute);
+app.use("/org-admin", orgAdminOwnerRoute);
+app.use("/", eventUserRoute);
+app.use("/payment", paymentRoutes);
 
 app.use((error, req, res, next) => {
   const status = error.statusCode || 500;
@@ -82,11 +64,7 @@ mongoose
 
 // Start server
 const PORT = process.env.PORT || 5000;
-const server = app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
-});
 
-const io = require("./socket").init(server);
-io.on("connection", (socket) => {
-  console.log("Client connected!");
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on http://localhost:${PORT}`);
 });

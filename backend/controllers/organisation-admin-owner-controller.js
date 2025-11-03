@@ -2,7 +2,6 @@ const dotenv = require("dotenv");
 dotenv.config();
 const { validationResult } = require("express-validator");
 
-const io = require("../socket.js");
 const s3 = require("../middleware/s3Client.js");
 const Event = require("../models/event.js");
 const EventAnalytics = require("../models/event-analytics.js");
@@ -133,8 +132,6 @@ exports.createEvent = async (req, res, next) => {
 
     await event.save();
 
-    // io.getIO().emit("event", { action: "create", event: event });
-
     return res
       .status(201)
       .json({ message: "Event created successfully. Thanks for registering!" });
@@ -252,7 +249,6 @@ exports.editCreatedEvent = async (req, res, next) => {
     }
 
     await event.save();
-    // io.getIO().emit("event", { action: "update", event: event });
     return res.status(200).json({ message: "Event updated successfully!" });
   } catch (err) {
     if (!err.statusCode) {
@@ -297,8 +293,6 @@ exports.deleteEvent = async (req, res, next) => {
     }
 
     await Event.findByIdAndDelete(eventId);
-
-    // io.getIO().emit("event", { action: "delete", eventId: eventId });
 
     return res.status(200).json({ message: "Event deleted successfully." });
   } catch (err) {
