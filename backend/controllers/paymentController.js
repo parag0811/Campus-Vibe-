@@ -10,9 +10,12 @@ const Payment = require("../models/payment.js");
 const Ticket = require("../models/ticket.js");
 const EventAnalytics = require("../models/event-analytics.js");
 
+const RZP_KEY_ID = process.env.RAZORPAY_KEY_ID;
+const RZP_KEY_SECRET = process.env.RAZORPAY_KEY_ID_SECRET;
+
 const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID,
-  key_secret: process.env.RAZORPAY_KEY_ID_SECRET,
+  key_id: RZP_KEY_ID,
+  key_secret: RZP_KEY_SECRET,
 });
 
 exports.createOrder = async (req, res, next) => {
@@ -22,7 +25,7 @@ exports.createOrder = async (req, res, next) => {
 
     if (!eventId) {
       const error = new Error("EventId not found.");
-      error.statusCode = 404;
+      error.statusCode = 400;
       throw error;
     }
 
@@ -33,66 +36,81 @@ exports.createOrder = async (req, res, next) => {
         message: "Event not found or does not exist.",
       });
     }
-    if (!event.price || event.price <= 0) {
+    if (!event.price || Number(event.price) <= 0) {
       return res.status(400).json({
         success: false,
         message: "This event is free or has no price set.",
       });
     }
 
-    const org = await Organisation.findById(event.created_by_organisation);
+    // Compute fees safely (org can be null)
+    const org = await Organisation.findById(event.created_by_organisation).lean();
     const feePercent =
-      org.payoutPreferences?.platformFeePercent ??
+      org?.payoutPreferences?.platformFeePercent ??
       Number(process.env.DEFAULT_PLATFORM_FEE_PERCENT || 5);
 
-    const amountPaise = Math.round(Number(event.price) * 100);
+    const amountPaise = Math.round(Number(event.price) * 100); // authoritative from DB
     const platformFee = Math.floor((amountPaise * feePercent) / 100);
     const orgShare = Math.max(0, amountPaise - platformFee);
 
-    const bookingId =
-      "CV-" + crypto.randomBytes(8).toString("hex").toUpperCase();
+    // Optionally reuse existing 'created' order
+    let existing = await Payment.findOne({ user: userId, event: event._id, status: "created" }).lean();
+    let order;
+    let bookingId;
 
-    const options = {
-      amount: Number(req.body.price * 100),
-      currency: "INR",
-      receipt: bookingId,
-      notes: { eventId: String(event._id), userId: String(userId) },
-    }; // Current order i am getting
+    if (existing) {
+      order = { id: existing.orderId, amount: existing.amount, currency: existing.currency || "INR" };
+      bookingId = existing.receipt;
+    } else {
+      bookingId = "CV-" + crypto.randomBytes(8).toString("hex").toUpperCase();
 
-    const order = await razorpay.orders.create(options); // Making order out of the data
+      const options = {
+        amount: amountPaise,
+        currency: "INR",
+        receipt: bookingId,
+        notes: { eventId: String(event._id), userId: String(userId) },
+      };
 
-    await Payment.create({
-      provider: "razorpay",    
-      orderId: order.id,
-      paymentId: null,
-      receipt: bookingId,
-      user: userId,
-      event: event._id,
-      organisation: event.created_by_organisation,
-      amount: amountPaise,
-      currency: "INR",
-      platformFee,
-      orgShare,
-      status: "created",
-      notes: order.notes,
-    });
+      order = await razorpay.orders.create(options);
+
+      await Payment.create({
+        provider: "razorpay",
+        orderId: order.id,
+        paymentId: null,
+        receipt: bookingId,
+        user: userId,
+        event: event._id,
+        organisation: event.created_by_organisation,
+        amount: amountPaise,
+        currency: "INR",
+        platformFee,
+        orgShare,
+        status: "created",
+        notes: order.notes,
+      });
+    }
 
     return res.status(200).json({
       success: true,
-      keyId: process.env.RAZORPAY_KEY_ID,
+      keyId: RZP_KEY_ID,
       orderId: order.id,
-      amount: order.amount,
-      currency: order.currency,
+      amount: amountPaise,
+      currency: "INR",
       bookingId,
+      eventId: String(event._id),
     });
   } catch (err) {
-    if (!err.statusCode) {
-      err.statusCode = 500;
+    if (err?.statusCode === 401 || err?.error?.code === "BAD_REQUEST_ERROR") {
+      return res.status(502).json({
+        success: false,
+        message: "Payment gateway auth failed. Check Razorpay keys on the server.",
+        details: err?.error?.description || "Authentication failed",
+      });
     }
+    if (!err.statusCode) err.statusCode = 500;
     next(err);
   }
 };
-
 
 exports.verifyPayment = async (req, res, next) => {
   try {
@@ -104,10 +122,7 @@ exports.verifyPayment = async (req, res, next) => {
     }
 
     const body = `${razorpay_order_id}|${razorpay_payment_id}`;
-    const expectedSignature = crypto
-      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
-      .update(body)
-      .digest("hex");
+    const expectedSignature = crypto.createHmac("sha256", RZP_KEY_SECRET).update(body).digest("hex");
 
     if (expectedSignature !== razorpay_signature) {
       return res.status(400).json({ success: false, message: "Invalid payment signature" });
@@ -129,12 +144,12 @@ exports.verifyPayment = async (req, res, next) => {
       return res.status(403).json({ success: false, message: "Payment does not belong to this user" });
     }
     if (payment.status === "paid") {
-      // Idempotent success
       const existingTicket = await Ticket.findOne({ bookingId: payment.receipt }).lean();
       return res.status(200).json({
         success: true,
         bookingId: payment.receipt,
         ticketId: existingTicket?._id,
+        eventId: String(payment.event),
       });
     }
 
@@ -173,25 +188,7 @@ exports.verifyPayment = async (req, res, next) => {
       },
     });
 
-    // analytics
     try {
-      const analytics = await EventAnalytics.findOne({ event: payment.event });
-      if (analytics) {
-        if (typeof analytics.registerations === "number") {
-          analytics.registerations += 1;
-        }
-        if (Array.isArray(analytics.registered_Users) && payment.email) {
-          analytics.registered_Users.push({ email: payment.email });
-        }
-        await analytics.save();
-      }
-    } catch (_) {}
-
-    try {
-      const ev = await Event.findById(payment.event).select("_id created_by_organisation").lean();
-      const org = await Organisation.findById(payment.organisation).select("razorpayAccountId").lean();
-
-
       const method = (payment.method || "").toLowerCase();
       const methodField =
         method === "upi" ? "revenue.methodBreakdown.upi"
@@ -201,7 +198,6 @@ exports.verifyPayment = async (req, res, next) => {
         : method === "emi" ? "revenue.methodBreakdown.emi"
         : "revenue.methodBreakdown.other";
 
-      // Build $inc for amounts
       const inc = {
         "revenue.ticketsSold": 1,
         "revenue.grossAmountPaise": payment.amount || 0,
@@ -214,24 +210,19 @@ exports.verifyPayment = async (req, res, next) => {
       await EventAnalytics.findOneAndUpdate(
         { event: payment.event },
         {
-          $setOnInsert: {
-            event: payment.event,
-            "revenue.currency": "INR",
-            "payout.payoutMode": "auto",
-            "payout.linkedRazorpayAccountId": org?.razorpayAccountId || undefined,
-          },
+          $setOnInsert: { event: payment.event, "revenue.currency": "INR" },
           $inc: inc,
           $max: { "revenue.lastPaymentAt": new Date() },
         },
         { upsert: true, new: true }
       );
-    } catch (_) {
-    }
+    } catch (_) {}
 
     return res.status(200).json({
       success: true,
       bookingId: payment.receipt,
       ticketId: ticket._id,
+      eventId: String(payment.event),
     });
   } catch (err) {
     if (!err.statusCode) err.statusCode = 500;

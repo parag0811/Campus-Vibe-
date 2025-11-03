@@ -35,20 +35,12 @@ const EventDetailPage = () => {
             ? ev.posterImage
             : null);
 
-        // derive organisation and ensure logo url
         const org = ev.organisation || ev.created_by_organisation || null;
         let orgLogoUrl = org?.logoUrl || null;
         const rawKey = org?.image || ev?.created_by_organisation?.image || null;
-        if (!orgLogoUrl && rawKey) {
-          const bucket = process.env.NEXT_PUBLIC_S3_BUCKET;
-          const region = process.env.NEXT_PUBLIC_S3_REGION;
-          if (bucket && region) {
-            orgLogoUrl = `https://${bucket}.s3.${region}.amazonaws.com/${encodeURIComponent(
-              rawKey
-            )}`;
-          } else if (/^https?:\/\//i.test(rawKey)) {
-            orgLogoUrl = rawKey;
-          }
+
+        if (!orgLogoUrl && rawKey && /^https?:\/\//i.test(rawKey)) {
+          orgLogoUrl = rawKey;
         }
 
         setEvent({ ...ev, posterUrl });
@@ -68,19 +60,100 @@ const EventDetailPage = () => {
     if (!eventId) return;
     try {
       setIsRegistering(true);
-      const response = await fetch(`${API_BASE}/eventRegistration/${eventId}`, {
+
+      if (isFree()) {
+        // Free event → direct registration
+        const resp = await fetch(`${API_BASE}/eventRegistration/${eventId}`, {
+          method: "POST",
+          credentials: "include",
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.message || "Registration failed");
+        toast.success(data.message || "Registration successful!");
+        return;
+      }
+
+      // Paid event → Razorpay flow
+      const orderResp = await fetch(`${API_BASE}/payment/create-order`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
         credentials: "include",
+        body: JSON.stringify({ eventId }),
       });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || "Registration failed");
-      toast.success(data.message || "Registration successful!");
+      const orderData = await orderResp.json();
+      if (!orderResp.ok || !orderData?.success) {
+        throw new Error(orderData.message || "Failed to create payment order");
+      }
+
+      // 2) Ensure checkout script loaded
+      await loadRazorpayScript();
+
+      // 3) Open Razorpay Checkout
+      const options = {
+        key: orderData.keyId,
+        amount: orderData.amount, // in paise
+        currency: orderData.currency || "INR",
+        name: organisation?.name || "CampusVibe",
+        description: event?.title || "Event registration",
+        order_id: orderData.orderId,
+        theme: { color: "#7c3aed" },
+        handler: async function (response) {
+          try {
+            // 4) Verify on backend
+            const verifyResp = await fetch(`${API_BASE}/payment/verify-payment`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              credentials: "include",
+              body: JSON.stringify({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+              }),
+            });
+            const verifyData = await verifyResp.json();
+            if (!verifyResp.ok || !verifyData?.success) {
+              throw new Error(verifyData.message || "Payment verification failed");
+            }
+            toast.success("Payment successful!");
+            router.push(
+              `/payment/success?bookingId=${encodeURIComponent(
+                verifyData.bookingId
+              )}&ticketId=${encodeURIComponent(verifyData.ticketId || "")}&eventId=${encodeURIComponent(
+                verifyData.eventId || eventId
+              )}`
+            );
+          } catch (e) {
+            toast.error(e.message || "Payment verification failed");
+            router.push(`/payment/failed?eventId=${encodeURIComponent(eventId)}`);
+          }
+        },
+        modal: {
+          ondismiss: () => {
+            toast.error("Payment cancelled.");
+          },
+        },
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.open();
     } catch (err) {
       toast.error(err.message || "Registration failed.");
     } finally {
       setIsRegistering(false);
     }
   };
+
+  async function loadRazorpayScript() {
+    if (window.Razorpay) return;
+    await new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = "https://checkout.razorpay.com/v1/checkout.js";
+      script.async = true;
+      script.onload = resolve;
+      script.onerror = () => reject(new Error("Failed to load Razorpay"));
+      document.body.appendChild(script);
+    });
+  }
 
   const formatDate = (dateString) => {
     if (!dateString) return "N/A";
