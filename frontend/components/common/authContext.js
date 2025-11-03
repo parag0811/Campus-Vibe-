@@ -3,13 +3,10 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { useToast } from "@/components/common/toast";
 
-// Base URL from environment
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
-// Create the context
 const AuthContext = createContext(null);
 
-// Custom hook to use the auth context
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
@@ -171,5 +168,4 @@ export function AuthProvider({ children }) {
   );
 }
 
-// Export the context as default
 export default AuthContext;

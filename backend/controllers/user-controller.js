@@ -202,6 +202,15 @@ exports.loginUser = async (req, res, next) => {
       throw error;
     }
 
+    if (!user.isVerified) {
+      return res.status(403).json({
+        success: false,
+        code: "EMAIL_NOT_VERIFIED",
+        message: "Please verify your email to continue.",
+        email: user.email,
+      });
+    }
+
     user.lastLoginAt = new Date();
     await user.save({ validateBeforeSave: false });
 
@@ -217,7 +226,7 @@ exports.loginUser = async (req, res, next) => {
 
     res.cookie("token", token, {
       httpOnly: true,
-      sameSite: "Strict",
+      sameSite: process.env.NODE_ENV === "production" ? "Strict" : "Lax",
       secure: process.env.NODE_ENV === "production",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
