@@ -143,6 +143,34 @@ exports.eventRegistration = async (req, res, next) => {
     }
 
     await event.save();
+
+    await User.updateOne(
+      { _id: req.userId },
+      { $addToSet: { registered_Events: event._id } }
+    );
+
+    try {
+      const u = await User.findById(req.userId).lean();
+      const payload = {
+        name: u?.name || null,
+        email: u?.email || null,
+        age: u?.age || null,
+        college_name: u?.college_name || null,
+        college_id: u?.college_id || null,
+      };
+      await EventAnalytics.updateOne(
+        { event: event._id, "registered_Users.email": { $ne: payload.email } },
+        {
+          $setOnInsert: { event: event._id, "revenue.currency": "INR" },
+          $inc: { registerations: 1 },
+          $push: { registered_Users: payload },
+        },
+        { upsert: true }
+      );
+    } catch (e) {
+      console.warn("Analytics update skipped (free):", e.message || e);
+    }
+
     return res.status(201).json({ message: "Registration Successfull!" });
   } catch (err) {
     if (!err.statusCode) {
@@ -227,6 +255,12 @@ exports.cancelRegistration = async (req, res, next) => {
       (a) => String(a) !== String(userId)
     );
     await event.save();
+
+    // ADD: remove from user's registered_Events
+    await User.updateOne(
+      { _id: userId },
+      { $pull: { registered_Events: event._id } }
+    );
 
     try {
       const analytics = await EventAnalytics.findOne({ event: event._id });

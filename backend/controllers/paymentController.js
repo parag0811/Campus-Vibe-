@@ -9,6 +9,7 @@ const Organisation = require("../models/organisation.js");
 const Payment = require("../models/payment.js");
 const Ticket = require("../models/ticket.js");
 const EventAnalytics = require("../models/event-analytics.js");
+const User = require("../models/user.js"); // ADD
 
 const RZP_KEY_ID = process.env.RAZORPAY_KEY_ID;
 const RZP_KEY_SECRET = process.env.RAZORPAY_KEY_ID_SECRET;
@@ -181,6 +182,32 @@ exports.verifyPayment = async (req, res, next) => {
       }
     }
 
+    await User.updateOne(
+      { _id: userId },
+      { $addToSet: { registered_Events: payment.event } }
+    );
+    try {
+      const u = await User.findById(userId).lean();
+      const payload = {
+        name: u?.name || null,
+        email: u?.email || null,
+        age: u?.age || null,
+        college_name: u?.college_name || null,
+        college_id: u?.college_id || null,
+      };
+      await EventAnalytics.updateOne(
+        { event: payment.event, "registered_Users.email": { $ne: payload.email } },
+        {
+          $setOnInsert: { event: payment.event, "revenue.currency": "INR" },
+          $inc: { registerations: 1 },
+          $push: { registered_Users: payload },
+        },
+        { upsert: true }
+      );
+    } catch (e) {
+      console.warn("Analytics update skipped (paid):", e.message || e);
+    }
+
     await Organisation.findByIdAndUpdate(payment.organisation, {
       $inc: {
         pendingPayoutBalance: payment.orgShare,
@@ -188,6 +215,7 @@ exports.verifyPayment = async (req, res, next) => {
       },
     });
 
+    // ...existing revenue analytics code remains...
     try {
       const method = (payment.method || "").toLowerCase();
       const methodField =
