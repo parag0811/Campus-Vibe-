@@ -62,18 +62,24 @@ const EventDetailPage = () => {
       setIsRegistering(true);
 
       if (isFree()) {
-        // Free event → direct registration
         const resp = await fetch(`${API_BASE}/eventRegistration/${eventId}`, {
           method: "POST",
           credentials: "include",
         });
         const data = await resp.json();
+
+        if (resp.status === 403 && data?.code === "PROFILE_INCOMPLETE") {
+          toast.error("Please complete your profile to register for events.");
+          router.push("/profile");
+          return;
+        }
+
         if (!resp.ok) throw new Error(data.message || "Registration failed");
         toast.success(data.message || "Registration successful!");
         return;
       }
 
-      // Paid event → Razorpay flow
+      // Paid event → create order
       const orderResp = await fetch(`${API_BASE}/payment/create-order`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -81,17 +87,22 @@ const EventDetailPage = () => {
         body: JSON.stringify({ eventId }),
       });
       const orderData = await orderResp.json();
+
+      if (orderResp.status === 403 && orderData?.code === "PROFILE_INCOMPLETE") {
+        toast.error("Please complete your profile to register for events.");
+        router.push("/profile");
+        return;
+      }
+
       if (!orderResp.ok || !orderData?.success) {
         throw new Error(orderData.message || "Failed to create payment order");
       }
 
-      // 2) Ensure checkout script loaded
       await loadRazorpayScript();
 
-      // 3) Open Razorpay Checkout
       const options = {
         key: orderData.keyId,
-        amount: orderData.amount, // in paise
+        amount: orderData.amount,
         currency: orderData.currency || "INR",
         name: organisation?.name || "CampusVibe",
         description: event?.title || "Event registration",
@@ -99,7 +110,6 @@ const EventDetailPage = () => {
         theme: { color: "#7c3aed" },
         handler: async function (response) {
           try {
-            // 4) Verify on backend
             const verifyResp = await fetch(`${API_BASE}/payment/verify-payment`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -127,11 +137,7 @@ const EventDetailPage = () => {
             router.push(`/payment/failed?eventId=${encodeURIComponent(eventId)}`);
           }
         },
-        modal: {
-          ondismiss: () => {
-            toast.error("Payment cancelled.");
-          },
-        },
+        modal: { ondismiss: () => toast.error("Payment cancelled.") },
       };
 
       const rzp = new window.Razorpay(options);

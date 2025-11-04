@@ -3,6 +3,8 @@ const router = express.Router();
 
 const isAuth = require("../middleware/is-auth.js");
 
+const isProfileCompleted = require("../middleware/completeProfile.js")
+
 const event_controller = require("../controllers/event-controller.js");
 
 router.get("/events", event_controller.getEvents);
@@ -12,6 +14,7 @@ router.get("/eventDetail/:eventId", event_controller.getEventDetail);
 router.post(
   "/eventRegistration/:eventId",
   isAuth,
+  isProfileCompleted,
   event_controller.eventRegistration
 );
 

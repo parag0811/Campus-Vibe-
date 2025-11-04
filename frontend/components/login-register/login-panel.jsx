@@ -33,6 +33,13 @@ export default function LoginPanel() {
       const data = await res.json();
 
       if (!res.ok) {
+        if (res.status === 403 && data?.code === "EMAIL_NOT_VERIFIED") {
+          const targetEmail = data?.email || email;
+          toast.error("Please verify your email to continue. Redirecting to verification page.");
+          router.push(`/verify-email?email=${encodeURIComponent(targetEmail)}`);
+          setLoading(false);
+          return;
+        }
         toast.error(data.message || "Login failed. Please try again.");
         setLoading(false);
         return;
