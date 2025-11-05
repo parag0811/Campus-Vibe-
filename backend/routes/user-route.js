@@ -56,7 +56,6 @@ const profileValidate = [
 const updateProfileValidate = [
   body("name").optional().isLength({ max: 16 }).trim().escape(),
   body("age").optional().isInt({ min: 13, max: 99 }),
-  body("email").optional().isEmail().trim().toLowerCase().normalizeEmail(),
   body("college_name").optional().isLength({ max: 60 }).trim().escape(),
   body("college_id").optional().isLength({ max: 24 }).trim().escape(),
   body("college_department").optional().isLength({ max: 60 }).trim().escape(),

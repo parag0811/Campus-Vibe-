@@ -1,7 +1,5 @@
-/* Import Inter font from Google Fonts */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
 
-/* Container and Layout */
 .container {
   padding: 2rem;
   background: #f8fafc;
@@ -10,9 +8,9 @@
 }
 
 .formWrapper {
-  background: white;
-  border-radius: 16px;
-  padding: 3rem;
+  background: transparent; 
+  border-radius: 0;       
+  padding: 2rem;           
   width: 100%;
   max-width: 900px;
   min-width: min(90vw, 50vw);

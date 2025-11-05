@@ -5,7 +5,6 @@ import { useToast } from "@/components/common/toast";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
-// Validation matching backend (see user-route.js)
 function validateProfile(formData) {
   const errors = {};
 
@@ -17,9 +16,9 @@ function validateProfile(formData) {
   }
 
   // Age
-  if (!formData.age.trim()) {
+  if (!String(formData.age).trim()) {
     errors.age = "Please enter a valid age.";
-  } else if (!/^\d+$/.test(formData.age)) {
+  } else if (!/^\d+$/.test(String(formData.age))) {
     errors.age = "Age must be valid.";
   } else if (parseInt(formData.age) < 13) {
     errors.age = "Age must be at least 13.";
@@ -41,11 +40,23 @@ function validateProfile(formData) {
     errors.college_id = "Id must be within 24 characters";
   }
 
-  // Email (required for update route)
-  if (!formData.email.trim()) {
-    errors.email = "Please enter a valid email.";
-  } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-    errors.email = "Please enter a valid email.";
+  // Department
+  if (!formData.college_department.trim()) {
+    errors.college_department = "Please enter your department/program.";
+  } else if (formData.college_department.length > 60) {
+    errors.college_department = "Department must be within 60 characters";
+  }
+
+  // Year
+  if (!String(formData.college_year).trim()) {
+    errors.college_year = "Please enter your current year/semester.";
+  } else if (!/^\d+$/.test(String(formData.college_year))) {
+    errors.college_year = "Year must be a number.";
+  } else if (
+    parseInt(formData.college_year) < 1 ||
+    parseInt(formData.college_year) > 10
+  ) {
+    errors.college_year = "Year must be between 1 and 10.";
   }
 
   return errors;
@@ -59,6 +70,8 @@ const UserProfileForm = () => {
     age: "",
     college_name: "",
     college_id: "",
+    college_department: "",
+    college_year: "",
   });
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(true);
@@ -86,10 +99,12 @@ const UserProfileForm = () => {
       const user = json.data || {};
       setFormData({
         name: user.name || "",
-        email: user.email || "",
+        email: user.email || "", // read-only
         age: user.age?.toString() || "",
         college_name: user.college_name || "",
         college_id: user.college_id || "",
+        college_department: user.college_department || "",
+        college_year: user.college_year?.toString() || "",
       });
     } catch (err) {
       toast.error(err.message || "Could not load profile");
@@ -125,9 +140,14 @@ const UserProfileForm = () => {
     setErrors({});
 
     try {
+      // Do NOT send email; it’s fixed
       const submitData = {
-        ...formData,
-        age: formData.age, // keep as string for backend
+        name: formData.name,
+        age: formData.age,
+        college_name: formData.college_name,
+        college_id: formData.college_id,
+        college_department: formData.college_department,
+        college_year: formData.college_year,
       };
 
       const response = await fetch(`${API_URL}/auth/update-user-profile`, {
@@ -143,14 +163,12 @@ const UserProfileForm = () => {
         setErrors({});
         fetchUserProfile();
       } else {
-        // express-validator errors
         if (data.data && Array.isArray(data.data)) {
           const backendErrors = {};
           data.data.forEach((error) => {
             backendErrors[error.param] = error.msg;
           });
           setErrors(backendErrors);
-          // Show only the first backend error as toast
           const firstError = data.data[0]?.msg;
           if (firstError) toast.error(firstError);
         } else if (data.message) {
@@ -190,7 +208,6 @@ const UserProfileForm = () => {
         </div>
 
         <form onSubmit={handleSubmit} className={styles.form}>
-          {/* Name */}
           <div className={styles.formGroup}>
             <label htmlFor="name" className={styles.label}>
               Full name
@@ -210,29 +227,21 @@ const UserProfileForm = () => {
             {errors.name && <span className={styles.error}>{errors.name}</span>}
           </div>
 
-          {/* Email (editable, as backend allows change) */}
           <div className={styles.formGroup}>
             <label htmlFor="email" className={styles.label}>
-              Email
+              Email (read-only)
             </label>
             <input
               type="email"
               id="email"
               name="email"
               value={formData.email}
-              onChange={handleChange}
-              className={`${styles.input} ${
-                errors.email ? styles.inputError : ""
-              }`}
-              placeholder="Enter your email"
-              autoComplete="off"
+              readOnly
+              disabled
+              className={styles.input}
             />
-            {errors.email && (
-              <span className={styles.error}>{errors.email}</span>
-            )}
           </div>
 
-          {/* Age */}
           <div className={styles.formGroup}>
             <label htmlFor="age" className={styles.label}>
               Age
@@ -252,7 +261,6 @@ const UserProfileForm = () => {
             {errors.age && <span className={styles.error}>{errors.age}</span>}
           </div>
 
-          {/* College Name */}
           <div className={styles.formGroup}>
             <label htmlFor="college_name" className={styles.label}>
               College Name
@@ -274,7 +282,6 @@ const UserProfileForm = () => {
             )}
           </div>
 
-          {/* College ID */}
           <div className={styles.formGroup}>
             <label htmlFor="college_id" className={styles.label}>
               College ID
@@ -296,7 +303,48 @@ const UserProfileForm = () => {
             )}
           </div>
 
-          {/* Action Buttons */}
+          <div className={styles.formGroup}>
+            <label htmlFor="college_department" className={styles.label}>
+              Department/Program
+            </label>
+            <input
+              type="text"
+              id="college_department"
+              name="college_department"
+              value={formData.college_department}
+              onChange={handleChange}
+              className={`${styles.input} ${
+                errors.college_department ? styles.inputError : ""
+              }`}
+              placeholder="Enter your department/program"
+              autoComplete="off"
+            />
+            {errors.college_department && (
+              <span className={styles.error}>{errors.college_department}</span>
+            )}
+          </div>
+
+          <div className={styles.formGroup}>
+            <label htmlFor="college_year" className={styles.label}>
+            Current Year (1-10)
+            </label>
+            <input
+              type="text"
+              id="college_year"
+              name="college_year"
+              value={formData.college_year}
+              onChange={handleChange}
+              className={`${styles.input} ${
+                errors.college_year ? styles.inputError : ""
+              }`}
+              placeholder="Enter your current year/semester"
+              autoComplete="off"
+            />
+            {errors.college_year && (
+              <span className={styles.error}>{errors.college_year}</span>
+            )}
+          </div>
+
           <div className={styles.buttonGroup}>
             <button
               type="button"

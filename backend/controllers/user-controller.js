@@ -327,7 +327,6 @@ exports.updateProfile = async (req, res, next) => {
     const {
       name,
       age,
-      email,
       college_name,
       college_id,
       college_department,
@@ -340,21 +339,6 @@ exports.updateProfile = async (req, res, next) => {
         success: false,
         message: "Please login to update user details.",
       });
-    }
-
-    if (email && user.email !== email.trim().toLowerCase()) {
-      const normalized = email.trim().toLowerCase();
-      const existingUser = await User.findOne({ email: normalized });
-      if (existingUser) {
-        const error = new Error("E-mail already exists!");
-        error.statusCode = 409;
-        throw error;
-      }
-      user.email = normalized;
-      user.isVerified = false;
-      user.emailVerificationOTP = undefined;
-      user.emailVerificationExpires = undefined;
-      user.lastOtpSentAt = undefined;
     }
 
     if (typeof name !== "undefined") user.name = name;
