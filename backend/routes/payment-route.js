@@ -9,4 +9,6 @@ router.post("/create-order", isAuth, isProfileCompleted, paymentController.creat
 
 router.post("/verify-payment", isAuth, paymentController.verifyPayment);
 
+router.get("/my-tickets", isAuth, paymentController.getMyTickets);
+
 module.exports = router;

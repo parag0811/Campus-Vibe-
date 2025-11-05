@@ -45,7 +45,9 @@ exports.createOrder = async (req, res, next) => {
     }
 
     // Compute fees safely (org can be null)
-    const org = await Organisation.findById(event.created_by_organisation).lean();
+    const org = await Organisation.findById(
+      event.created_by_organisation
+    ).lean();
     const feePercent =
       org?.payoutPreferences?.platformFeePercent ??
       Number(process.env.DEFAULT_PLATFORM_FEE_PERCENT || 5);
@@ -55,12 +57,20 @@ exports.createOrder = async (req, res, next) => {
     const orgShare = Math.max(0, amountPaise - platformFee);
 
     // Optionally reuse existing 'created' order
-    let existing = await Payment.findOne({ user: userId, event: event._id, status: "created" }).lean();
+    let existing = await Payment.findOne({
+      user: userId,
+      event: event._id,
+      status: "created",
+    }).lean();
     let order;
     let bookingId;
 
     if (existing) {
-      order = { id: existing.orderId, amount: existing.amount, currency: existing.currency || "INR" };
+      order = {
+        id: existing.orderId,
+        amount: existing.amount,
+        currency: existing.currency || "INR",
+      };
       bookingId = existing.receipt;
     } else {
       bookingId = "CV-" + crypto.randomBytes(8).toString("hex").toUpperCase();
@@ -104,7 +114,8 @@ exports.createOrder = async (req, res, next) => {
     if (err?.statusCode === 401 || err?.error?.code === "BAD_REQUEST_ERROR") {
       return res.status(502).json({
         success: false,
-        message: "Payment gateway auth failed. Check Razorpay keys on the server.",
+        message:
+          "Payment gateway auth failed. Check Razorpay keys on the server.",
         details: err?.error?.description || "Authentication failed",
       });
     }
@@ -115,37 +126,64 @@ exports.createOrder = async (req, res, next) => {
 
 exports.verifyPayment = async (req, res, next) => {
   try {
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } =
+      req.body;
     const userId = req.userId;
 
     if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
-      return res.status(400).json({ success: false, message: "Missing Razorpay verification fields" });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "Missing Razorpay verification fields",
+        });
     }
 
     const body = `${razorpay_order_id}|${razorpay_payment_id}`;
-    const expectedSignature = crypto.createHmac("sha256", RZP_KEY_SECRET).update(body).digest("hex");
+    const expectedSignature = crypto
+      .createHmac("sha256", RZP_KEY_SECRET)
+      .update(body)
+      .digest("hex");
 
     if (expectedSignature !== razorpay_signature) {
-      return res.status(400).json({ success: false, message: "Invalid payment signature" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid payment signature" });
     }
 
     const rpPayment = await razorpay.payments.fetch(razorpay_payment_id);
     if (!rpPayment || rpPayment.order_id !== razorpay_order_id) {
-      return res.status(400).json({ success: false, message: "Payment mismatch" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Payment mismatch" });
     }
     if (rpPayment.status !== "captured") {
-      return res.status(400).json({ success: false, message: `Payment not captured (${rpPayment.status})` });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: `Payment not captured (${rpPayment.status})`,
+        });
     }
 
     const payment = await Payment.findOne({ orderId: razorpay_order_id });
     if (!payment) {
-      return res.status(404).json({ success: false, message: "Payment record not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Payment record not found" });
     }
     if (String(payment.user) !== String(userId)) {
-      return res.status(403).json({ success: false, message: "Payment does not belong to this user" });
+      return res
+        .status(403)
+        .json({
+          success: false,
+          message: "Payment does not belong to this user",
+        });
     }
     if (payment.status === "paid") {
-      const existingTicket = await Ticket.findOne({ bookingId: payment.receipt }).lean();
+      const existingTicket = await Ticket.findOne({
+        bookingId: payment.receipt,
+      }).lean();
       return res.status(200).json({
         success: true,
         bookingId: payment.receipt,
@@ -174,7 +212,9 @@ exports.verifyPayment = async (req, res, next) => {
 
     const ev = await Event.findById(payment.event);
     if (ev) {
-      const exists = (ev.attendees || []).some((a) => String(a) === String(userId));
+      const exists = (ev.attendees || []).some(
+        (a) => String(a) === String(userId)
+      );
       if (!exists) {
         ev.attendees = ev.attendees || [];
         ev.attendees.push(userId);
@@ -196,7 +236,10 @@ exports.verifyPayment = async (req, res, next) => {
         college_id: u?.college_id || null,
       };
       await EventAnalytics.updateOne(
-        { event: payment.event, "registered_Users.email": { $ne: payload.email } },
+        {
+          event: payment.event,
+          "registered_Users.email": { $ne: payload.email },
+        },
         {
           $setOnInsert: { event: payment.event, "revenue.currency": "INR" },
           $inc: { registerations: 1 },
@@ -219,12 +262,17 @@ exports.verifyPayment = async (req, res, next) => {
     try {
       const method = (payment.method || "").toLowerCase();
       const methodField =
-        method === "upi" ? "revenue.methodBreakdown.upi"
-        : method === "card" ? "revenue.methodBreakdown.card"
-        : method === "netbanking" ? "revenue.methodBreakdown.netbanking"
-        : method === "wallet" ? "revenue.methodBreakdown.wallet"
-        : method === "emi" ? "revenue.methodBreakdown.emi"
-        : "revenue.methodBreakdown.other";
+        method === "upi"
+          ? "revenue.methodBreakdown.upi"
+          : method === "card"
+          ? "revenue.methodBreakdown.card"
+          : method === "netbanking"
+          ? "revenue.methodBreakdown.netbanking"
+          : method === "wallet"
+          ? "revenue.methodBreakdown.wallet"
+          : method === "emi"
+          ? "revenue.methodBreakdown.emi"
+          : "revenue.methodBreakdown.other";
 
       const inc = {
         "revenue.ticketsSold": 1,
@@ -252,6 +300,31 @@ exports.verifyPayment = async (req, res, next) => {
       ticketId: ticket._id,
       eventId: String(payment.event),
     });
+  } catch (err) {
+    if (!err.statusCode) err.statusCode = 500;
+    next(err);
+  }
+};
+
+exports.getMyTickets = async (req, res, next) => {
+  try {
+    if (!req.userId) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
+    const tickets = await Ticket.find({ user: req.userId })
+      .select("_id bookingId event status createdAt")
+      .lean();
+
+    const data = tickets.map((t) => ({
+      ticketId: String(t._id),
+      bookingId: t.bookingId,
+      eventId: String(t.event),
+      status: t.status || "active",
+      createdAt: t.createdAt,
+    }));
+
+    return res.status(200).json({ success: true, data });
   } catch (err) {
     if (!err.statusCode) err.statusCode = 500;
     next(err);

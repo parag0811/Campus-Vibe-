@@ -1,0 +1,261 @@
+.container {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 24px 16px 64px;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+}
+
+.containerEmpty {
+  min-height: 60vh;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  text-align: center;
+}
+
+.header {
+  margin-bottom: 16px;
+}
+
+.headerCenter {
+  text-align: center;
+}
+
+.h1 {
+  font-size: clamp(22px, 2.5vw, 32px);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin: 0 0 6px 0;
+  color: #111827;
+}
+
+.h1Empty {
+  font-size: clamp(22px, 2.5vw, 32px);
+  font-weight: 700; /* less bold than 800 */
+  letter-spacing: -0.02em;
+  margin: 0 0 6px 0;
+  color: #111827; /* black/near-black */
+}
+
+.sub {
+  color: #6b7280; /* gray */
+  margin: 0;
+  font-weight: 400;
+}
+
+.subEmphasis {
+  color: #6b7280;
+  margin: 0;
+  font-weight: 600; 
+}
+
+.section {
+  margin-top: 24px;
+}
+
+.h2 {
+  font-size: clamp(16px, 2vw, 20px);
+  font-weight: 700;
+  margin: 0 0 12px 0;
+  color: #111827; 
+}
+
+.grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+}
+
+.card {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.media {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #f3f4f6;
+}
+
+.poster {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.posterFallback {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  color: #6b7280;
+  font-weight: 700;
+  font-size: 28px;
+  background: #eef2ff;
+}
+
+.body {
+  padding: 12px 14px 14px;
+}
+
+.titleRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: #111827; /* ensure event title is black */
+}
+
+.priceFree {
+  color: #10b981;
+  background: #ecfdf5;
+  border: 1px solid #d1fae5;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.pricePaid {
+  color: #7c3aed;
+  background: #f5f3ff;
+  border: 1px solid #ede9fe;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.meta {
+  margin-top: 6px;
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.org {
+  margin-left: 6px;
+}
+
+.ticketRow {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.ticketInfo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ticketText {
+  color: #111827;
+  font-size: 13px;
+}
+
+.ticketTextMuted {
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.badge {
+  background: #eef2ff;
+  color: #3730a3;
+  border: 1px solid #e0e7ff;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-weight: 700;
+}
+
+.badgeMuted {
+  background: #f3f4f6;
+  color: #6b7280;
+  border: 1px solid #e5e7eb;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-weight: 700;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btnPrimary {
+  background: #7c3aed;
+  color: white;
+  border: 1px solid #7c3aed;
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  transition: box-shadow 0.15s ease, transform 0.06s ease;
+}
+
+.btnPrimary:hover {
+  box-shadow: 0 8px 20px rgba(124, 58, 237, 0.25);
+  transform: translateY(-1px);
+}
+
+.loading {
+  display: grid;
+  place-items: center;
+  gap: 10px;
+  color: #6b7280;
+  padding: 40px 0;
+}
+
+.spinner {
+  width: 22px;
+  height: 22px;
+  border: 3px solid #e5e7eb;
+  border-top-color: #7c3aed;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.empty {
+  margin-top: 24px;
+  padding: 20px;
+  border: 1px dashed #e5e7eb;
+  border-radius: 12px;
+  display: grid;
+  justify-items: center;
+  gap: 16px; 
+  background: transparent;
+}
+
+.emptyCentered {
+  width: min(540px, 100%);
+}
+
+.emptyText {
+  color: #6b7280;         
+  font-weight: 600;      
+  margin: 0 0 4px 0;       
+  text-wrap: balance;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
