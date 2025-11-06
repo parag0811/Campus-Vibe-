@@ -89,14 +89,16 @@ export default function MyEventsPage() {
     };
   }, []); 
 
+  const toId = (v) => (v && v._id) ? String(v._id) : String(v);
+
   const ticketByEventId = useMemo(() => {
     const map = new Map();
-    tickets.forEach((t) => map.set(String(t.eventId), t));
+    tickets.forEach((t) => map.set(toId(t.eventId), t));
     return map;
   }, [tickets]);
 
   const renderEventCard = (ev) => {
-    const t = ticketByEventId.get(String(ev._id));
+    const t = ticketByEventId.get(toId(ev));
     return (
       <div key={ev._id} className={styles.card}>
         <div className={styles.media}>

@@ -13,16 +13,60 @@
   background: #fff;
 }
 
-.success { border-color: #d9f99d; background: #f7fee7; }
-.failed { border-color: #fecaca; background: #fff1f2; }
+.success {
+  border-color: #d9f99d;
+  background: #f7fee7;
+}
+.failed {
+  border-color: #fecaca;
+  background: #fff1f2;
+}
 
+.brandTop {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.brandTextCampus {
+  font-weight: 800;
+  color: black;
+  letter-spacing: -0.01em;
+  font-size: 1.5rem;
+}
+
+.brandTextVibe {
+  font-weight: 800;
+  color: #7c3aed;
+  letter-spacing: -0.01em;
+  font-size: 1.5rem;
+}
+
+.centerBlock {
+  text-align: center;
+  margin: 4px 0 12px;
+}
+.eventTitleLarge {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  color: #0f172a;
+}
+.organisationName {
+  margin: 2px 0 0;
+  color: #475569;
+  font-weight: 600;
+}
+
+/* Existing */
 .title {
   margin: 0 0 8px;
   font-size: 28px;
   font-weight: 800;
   color: #0f172a;
 }
-
 .sub {
   margin: 0 0 16px;
   color: #475569;
@@ -30,18 +74,40 @@
 
 .kv {
   display: grid;
-  grid-template-columns: 1fr;
-  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 8px 16px;
   margin: 8px 0 16px;
 }
-.k { color: #64748b; font-size: 12px; display: block; }
-.v { color: #0f172a; font-weight: 700; }
+.k {
+  color: #64748b;
+  font-size: 12px;
+  display: block;
+}
+.v {
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.banner {
+  width: 100%;
+  height: 160px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid #eef;
+  margin: 4px 0 12px;
+}
+.banner img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
 
 .actions {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
   margin-top: 8px;
+  justify-content: center; /* center actions */
 }
 
 .btn {
@@ -53,7 +119,35 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  border: 1px solid transparent;
+  cursor: pointer;
 }
 
-.primary { background: #7c3aed; color: #fff; border: 1px solid #6d28d9; }
-.secondary { background: #f3e8ff; color: #5b21b6; border: 1px solid #e9d5ff; }
+.primary {
+  background: #7c3aed;
+  color: #fff;
+  border-color: #6d28d9;
+}
+.secondary {
+  background: #f3e8ff;
+  color: #5b21b6;
+  border-color: #e9d5ff;
+}
+
+@media print {
+  @page { size: A4; margin: 12mm; }
+
+  #ticketPrint, #ticketPrint * { visibility: visible !important; }
+
+  #ticketPrint {
+    position: absolute;
+    left: 0; top: 0; right: 0;
+    margin: 0 !important;
+    width: 100% !important;
+  }
+
+  .noPrint { display: none !important; }
+  .wrapper { margin: 0 !important; padding: 0 !important; }
+  .card { background: #fff !important; border: none !important; box-shadow: none !important; }
+  .printCard { page-break-inside: avoid; }
+}
