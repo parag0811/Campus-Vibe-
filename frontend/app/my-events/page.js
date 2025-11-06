@@ -138,11 +138,7 @@ export default function MyEventsPage() {
                     className={styles.btnPrimary}
                     onClick={() =>
                       router.push(
-                        `/payment/success?bookingId=${encodeURIComponent(
-                          t.bookingId
-                        )}&ticketId=${encodeURIComponent(
-                          t.ticketId
-                        )}&eventId=${encodeURIComponent(ev._id)}`
+                        `/payment/success?bookingId=${encodeURIComponent(t.bookingId)}`
                       )
                     }
                   >

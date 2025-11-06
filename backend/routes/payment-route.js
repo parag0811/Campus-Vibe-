@@ -11,4 +11,6 @@ router.post("/verify-payment", isAuth, paymentController.verifyPayment);
 
 router.get("/my-tickets", isAuth, paymentController.getMyTickets);
 
+router.get("/ticket/:bookingId", isAuth, paymentController.getTicketDetails);
+
 module.exports = router;

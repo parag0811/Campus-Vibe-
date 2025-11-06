@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import styles from "../payment.module.css";
 
@@ -9,6 +10,39 @@ export default function PaymentSuccessPage() {
   const bookingId = params.get("bookingId");
   const ticketId = params.get("ticketId");
   const eventId = params.get("eventId");
+
+  const [detail, setDetail] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let canceled = false;
+    if (!bookingId) return;
+
+    (async () => {
+      try {
+        setLoading(true);
+        const res = await fetch(
+          `${API_BASE}/payment/ticket/${encodeURIComponent(bookingId)}`,
+          {
+            credentials: "include",
+          }
+        );
+        const json = await res.json();
+        if (!res.ok || !json?.success) {
+          throw new Error(json?.message || "Failed to load ticket");
+        }
+        if (!canceled) setDetail(json.data);
+      } catch (e) {
+        if (!canceled) setDetail(null);
+      } finally {
+        if (!canceled) setLoading(false);
+      }
+    })();
+
+    return () => {
+      canceled = true;
+    };
+  }, [bookingId]);
 
   return (
     <main className={styles.wrapper}>
@@ -31,13 +65,28 @@ export default function PaymentSuccessPage() {
           )}
         </div>
 
+        {detail?.event && (
+          <div className={styles.eventDetails}>
+            <h2 className={styles.eventTitle}>{detail.event.title}</h2>
+            <p className={styles.organisationName}>
+              {detail.organisation.name}
+            </p>
+          </div>
+        )}
+
         <div className={styles.actions}>
           {eventId && (
-            <Link href={`/events/${eventId}`} className={`${styles.btn} ${styles.primary}`}>
+            <Link
+              href={`/events/${eventId}`}
+              className={`${styles.btn} ${styles.primary}`}
+            >
               View event
             </Link>
           )}
-          <Link href="/events" className={`${styles.btn} ${styles.secondary}`}>
+          <Link
+            href="/events"
+            className={`${styles.btn} ${styles.secondary}`}
+          >
             Browse more events
           </Link>
         </div>

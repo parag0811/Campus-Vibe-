@@ -330,3 +330,72 @@ exports.getMyTickets = async (req, res, next) => {
     next(err);
   }
 };
+
+exports.getTicketDetails = async (req, res, next) => {
+  try {
+    const { bookingId } = req.params;
+    if (!bookingId) {
+      return res.status(400).json({ success: false, message: "Missing bookingId" });
+    }
+
+    const ticket = await Ticket.findOne({ bookingId })
+      .populate({
+        path: "event",
+        select: "title start_date end_date venue location imageUrl price created_by_organisation",
+        populate: { path: "created_by_organisation", select: "name logoUrl" },
+      })
+      .populate({
+        path: "payment",
+        select: "orderId paymentId amount currency status method createdAt",
+      })
+      .lean();
+
+    if (!ticket) {
+      return res.status(404).json({ success: false, message: "Ticket not found" });
+    }
+    if (String(ticket.user) !== String(req.userId)) {
+      return res.status(403).json({ success: false, message: "Forbidden" });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        bookingId: ticket.bookingId,
+        status: ticket.status || "active",
+        issuedAt: ticket.createdAt,
+        event: ticket.event
+          ? {
+              id: String(ticket.event._id),
+              title: ticket.event.title,
+              start_date: ticket.event.start_date,
+              end_date: ticket.event.end_date,
+              venue: ticket.event.venue,
+              location: ticket.event.location,
+              imageUrl: ticket.event.imageUrl,
+              price: ticket.event.price,
+            }
+          : null,
+        organisation: ticket.event?.created_by_organisation
+          ? {
+              name: ticket.event.created_by_organisation.name,
+              logoUrl: ticket.event.created_by_organisation.logoUrl,
+            }
+          : null,
+        payment: ticket.payment
+          ? {
+              orderId: ticket.payment.orderId,
+              paymentId: ticket.payment.paymentId,
+              amount: ticket.payment.amount,
+              currency: ticket.payment.currency || "INR",
+              status: ticket.payment.status,
+              method: ticket.payment.method,
+              createdAt: ticket.payment.createdAt,
+            }
+          : null,
+      },
+    });
+  } catch (err) {
+    if (!err.statusCode) err.statusCode = 500;
+    next(err);
+  }
+};
