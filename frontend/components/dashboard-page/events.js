@@ -2,54 +2,93 @@
 import styles from "./events.module.css";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import Alert from "@/components/alert/alert.js";
+// import Alert from "@/components/alert/alert.js"; // removed
+import { useToast } from "@/components/common/toast";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
 const EventsDashboard = () => {
   const router = useRouter();
+  const { toast } = useToast();
+
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [orgId, setOrgId] = useState(null);
   const [error, setError] = useState(null);
-  const [alert, setAlert] = useState({ show: false, type: "info", message: "" });
 
   useEffect(() => {
+    const ac = new AbortController();
+
     const fetchEvents = async () => {
       try {
-        // Fetch organisation info
-        const orgRes = await fetch(`${API_BASE}/organisationAdmin/my-organisation`, {
+        setLoading(true);
+        setError(null);
+
+        // 1) Fetch organisation info
+        const orgRes = await fetch(`${API_BASE}/org/organisationAdmin/my-organisation`, {
           credentials: "include",
+          signal: ac.signal,
+          headers: { "Cache-Control": "no-cache" },
         });
-        if (!orgRes.ok) throw new Error("Failed to fetch organisation info.");
+
+        if (orgRes.status === 401) {
+          toast.info("Please login to manage events.");
+          router.replace("/login");
+          return;
+        }
+
         const org = await orgRes.json();
-        const organisationId = org?.organisation?._id;
-        if (!organisationId) throw new Error("Organisation not found.");
+        if (!orgRes.ok) {
+          throw new Error(org?.message || "Failed to fetch organisation info.");
+        }
 
-        setOrgId(organisationId);
+        const organisationId = org?.organisationId || org?.organisation?._id;
+        if (!organisationId) {
+          toast.info("Create an organisation to add events.");
+          router.push("/create-organisation");
+          return;
+        }
 
-        // Fetch events for organisation
-        const eventsRes = await fetch(`${API_BASE}/organisation/${organisationId}/createdEvents`, {
-          credentials: "include",
-        });
-        if (!eventsRes.ok) throw new Error("Failed to fetch events.");
+        setOrgId(String(organisationId));
+
+        // 2) Fetch events for organisation
+        const eventsRes = await fetch(
+          `${API_BASE}/org/organisation/${organisationId}/createdEvents`,
+          { credentials: "include", signal: ac.signal, headers: { "Cache-Control": "no-cache" } }
+        );
+
+        if (eventsRes.status === 401) {
+          toast.info("Please login to manage events.");
+          router.replace("/login");
+          return;
+        }
+
+        // 404 is a valid "no events" state
+        if (eventsRes.status === 404) {
+          setEvents([]);
+          return;
+        }
+
+        if (!eventsRes.ok) {
+          const data = await eventsRes.json().catch(() => ({}));
+          throw new Error(data?.message || "Failed to fetch events.");
+        }
+
         const data = await eventsRes.json();
-        setEvents(data.events || []);
+        setEvents(Array.isArray(data.events) ? data.events : []);
       } catch (err) {
+        if (ac.signal.aborted) return;
         setError(err.message || "Something went wrong.");
         setEvents([]);
+        toast.error(err.message || "Failed to load events");
       } finally {
-        setLoading(false);
+        if (!ac.signal.aborted) setLoading(false);
       }
     };
 
     fetchEvents();
-  }, []);
-
-  const showAlert = (type, message) => {
-    setAlert({ show: true, type, message });
-    setTimeout(() => setAlert({ show: false, type: "info", message: "" }), 4000);
-  };
+    return () => ac.abort();
+  }, [router, toast]);
 
   const handleCreateEvent = () => {
     router.push("/admin/events/create-event");
@@ -60,21 +99,11 @@ const EventsDashboard = () => {
   };
 
   const handleViewAnalytics = (eventId) => {
-  router.push(`/admin/events/event-analytics?event=${eventId}&org=${orgId}`);
+    router.push(`/admin/events/event-analytics?event=${eventId}&org=${orgId}`);
   };
 
   return (
     <div className={styles.container}>
-      {alert.show && (
-        <Alert
-          type={alert.type}
-          message={alert.message}
-          onClose={() => setAlert({ show: false, type: "info", message: "" })}
-          autoClose={true}
-          duration={4000}
-        />
-      )}
-
       {/* Hero Section */}
       <div
         className={styles.heroSection}
@@ -103,7 +132,6 @@ const EventsDashboard = () => {
               <button className={styles.discoverBtn} onClick={handleCreateEvent}>
                 Create Event
               </button>
-              {/* <button className={styles.watchBtn}>Watch video</button> */}
             </div>
           </div>
         </div>
@@ -128,12 +156,13 @@ const EventsDashboard = () => {
                     alt={event.title}
                     className={styles.eventImage}
                   />
-                  {/* Remove favorite button if not used */}
                 </div>
                 <div className={styles.eventContent}>
                   <h3 className={styles.eventTitle}>{event.title}</h3>
                   <p className={styles.eventDate}>
-                    {new Date(event.registeration_deadline).toLocaleDateString()}
+                    {event.registeration_deadline
+                      ? new Date(event.registeration_deadline).toLocaleDateString()
+                      : "—"}
                   </p>
                   <div className={styles.eventFooter}>
                     <button

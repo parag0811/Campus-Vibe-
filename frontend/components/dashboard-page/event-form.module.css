@@ -279,19 +279,13 @@
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
-  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
+  transition: background .2s ease, box-shadow .2s ease, opacity .2s ease;
+  box-shadow: 0 4px 12px rgba(234, 49, 49, 0.25);
   font-family: inherit;
 }
-
-.submitButton:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(124, 58, 237, 0.4);
-}
-
-.submitButton:active {
-  transform: translateY(0);
-  box-shadow: 0 4px 8px rgba(124, 58, 237, 0.3);
+.deleteButtonConfirm {
+  background: linear-gradient(135deg, #991b1b, #7f1d1d); /* stronger for confirm */
+  box-shadow: 0 6px 16px rgba(153, 27, 27, 0.35);
 }
 
 /* Add these styles to your existing event-form.module.css */

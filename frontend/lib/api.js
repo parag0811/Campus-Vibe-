@@ -3,7 +3,7 @@ export async function getOrg() {
 
   try {
     const response = await fetch(
-      `${baseUrl}/organisationAdmin/my-organisation`,
+      `${baseUrl}/org/organisationAdmin/my-organisation`,
       {
         credentials: "include",
       }

@@ -1,47 +1,135 @@
 "use client";
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useCallback } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import styles from "./event-analytics.module.css";
-import { useSearchParams } from "next/navigation";
+import { useToast } from "@/components/common/toast";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
 const EventAnalytics = () => {
   const router = useRouter();
+  const { toast } = useToast();
   const searchParams = useSearchParams();
+
   const eventId = searchParams.get("event");
-  const organisationId = searchParams.get("org");
+  const orgFromQS = searchParams.get("org");
+
+  const [orgId, setOrgId] = useState(orgFromQS || null);
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // Resolve organisationId if not in query
   useEffect(() => {
-    if (eventId && organisationId) {
-      fetchEventAnalytics();
+    const ac = new AbortController();
+
+    async function ensureOrgId() {
+      if (orgFromQS) {
+        setOrgId(orgFromQS);
+        setLoading(false);
+        return;
+      }
+      try {
+        const res = await fetch(
+          `${API_BASE}/org/organisationAdmin/my-organisation`,
+          {
+            credentials: "include",
+            headers: { "Cache-Control": "no-cache" },
+            signal: ac.signal,
+          }
+        );
+
+        if (res.status === 401) {
+          toast.info("Please login to view analytics.");
+          router.replace("/login");
+          return;
+        }
+
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data?.message || "Failed to resolve organisation.");
+        }
+
+        const id = data?.organisationId || data?.organisation?._id;
+        if (!id) {
+          toast.info("Create an organisation to access analytics.");
+          router.push("/create-organisation");
+          return;
+        }
+        setOrgId(String(id));
+      } catch (e) {
+        if (!ac.signal.aborted) {
+          setError(e.message || "Failed to resolve organisation.");
+        }
+      } finally {
+        if (!ac.signal.aborted) setLoading(false);
+      }
     }
-  }, [eventId, organisationId]);
 
-  const fetchEventAnalytics = async () => {
+    ensureOrgId();
+    return () => ac.abort();
+  }, [orgFromQS, router, toast]);
+
+  const fetchEventAnalytics = useCallback(async () => {
+    if (!eventId || !orgId) return;
+
+    const ac = new AbortController();
+    setLoading(true);
+    setError(null);
+
     try {
-      setLoading(true);
-      setError(null);
-      const response = await fetch(
-        API_BASE + `/organisation/${organisationId}/event/${eventId}/eventAnalytics`,
-        { credentials: "include" }
+      const res = await fetch(
+        `${API_BASE}/org-admin/organisation/${encodeURIComponent(
+          orgId
+        )}/event/${encodeURIComponent(eventId)}/eventAnalytics`,
+        {
+          credentials: "include",
+          signal: ac.signal,
+          headers: { "Cache-Control": "no-cache" },
+        }
       );
-      const data = await response.json();
 
-      if (!response.ok) {
-        throw new Error(data.message || "Failed to fetch analytics");
+      if (res.status === 401) {
+        toast.info("Session expired. Please login again.");
+        router.replace("/login");
+        return;
+      }
+      if (res.status === 403) {
+        setError("You are not authorized to view this event’s analytics.");
+        return;
+      }
+      if (res.status === 404) {
+        const data = await res.json().catch(() => ({}));
+        setError(data?.message || "Event not found or no analytics available.");
+        return;
       }
 
-      setAnalytics(data.analytics);
-    } catch (err) {
-      setError(err.message);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.message || "Failed to fetch analytics.");
+
+      setAnalytics(data.analytics || null);
+    } catch (e) {
+      if (!ac.signal.aborted) {
+        setError(e.message || "Failed to fetch analytics.");
+        toast.error(e.message || "Failed to fetch analytics.");
+      }
     } finally {
-      setLoading(false);
+      if (!ac.signal.aborted) setLoading(false);
     }
-  };
+
+    return () => ac.abort();
+  }, [eventId, orgId, router, toast]);
+
+  useEffect(() => {
+    if (!eventId || !orgId) return;
+    let canceled = false;
+    (async () => {
+      await fetchEventAnalytics();
+    })();
+    return () => {
+      canceled = true;
+    };
+  }, [eventId, orgId, fetchEventAnalytics]);
 
   if (loading) {
     return (
@@ -65,15 +153,18 @@ const EventAnalytics = () => {
     );
   }
 
+  const registrations = analytics?.registerations || 0;
+  const users = Array.isArray(analytics?.registered_Users)
+    ? analytics.registered_Users
+    : [];
+
   return (
     <div className={styles.container}>
       <div className={styles.header}>
         <h1 className={styles.title}>Event Analytics</h1>
         <div className={styles.statsCard}>
           <div className={styles.statItem}>
-            <span className={styles.statNumber}>
-              {analytics?.registerations || 0}
-            </span>
+            <span className={styles.statNumber}>{registrations}</span>
             <span className={styles.statLabel}>Total Registrations</span>
           </div>
         </div>
@@ -91,7 +182,7 @@ const EventAnalytics = () => {
             </button>
           </div>
 
-          {analytics?.registered_Users?.length > 0 ? (
+          {users.length > 0 ? (
             <div className={styles.tableContainer}>
               <table className={styles.table}>
                 <thead>
@@ -104,15 +195,15 @@ const EventAnalytics = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {analytics.registered_Users.map((user, index) => (
-                    <tr key={index}>
-                      <td className={styles.nameCell}>{user.name}</td>
-                      <td className={styles.emailCell}>{user.email}</td>
-                      <td className={styles.ageCell}>{user.age}</td>
+                  {users.map((user, idx) => (
+                    <tr key={`${user.email || idx}-${idx}`}>
+                      <td className={styles.nameCell}>{user.name || "—"}</td>
+                      <td className={styles.emailCell}>{user.email || "—"}</td>
+                      <td className={styles.ageCell}>{user.age ?? "—"}</td>
                       <td className={styles.collegeCell}>
-                        {user.college_name}
+                        {user.college_name || "—"}
                       </td>
-                      <td className={styles.idCell}>{user.college_id}</td>
+                      <td className={styles.idCell}>{user.college_id || "—"}</td>
                     </tr>
                   ))}
                 </tbody>

@@ -27,7 +27,6 @@ export default function MainHeader() {
 
   useEffect(() => {
     if (isClient) safeCheckAuth();
-    // close menu on route change
     setMenuOpen(false);
   }, [safeCheckAuth, router, isClient, pathname]);
 
@@ -97,22 +96,15 @@ export default function MainHeader() {
             <div className={styles.menuOverlay} onClick={() => setMenuOpen(false)} />
             <nav className={styles.menuPanel} role="menu" aria-label="User menu">
               <button
-                className={styles.menuItem}
-                role="menuitem"
-                onClick={() => {
-                  setMenuOpen(false);
-                  router.push("/profile");
-                }}
+                className={`${styles.menuItem} ${styles.menuItemSecondary}`}
+                onClick={() => router.push("/profile")}
               >
                 Profile
               </button>
+
               <button
-                className={styles.menuItem}
-                role="menuitem"
-                onClick={() => {
-                  setMenuOpen(false);
-                  router.push("/my-events");
-                }}
+                className={`${styles.menuItem} ${styles.menuItemSecondary}`}
+                onClick={() => router.push("/my-events")}
               >
                 My Registered Events
               </button>

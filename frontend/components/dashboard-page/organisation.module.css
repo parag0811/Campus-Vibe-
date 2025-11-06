@@ -244,6 +244,35 @@
   color: red;
 }
 
+.emptyState {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 24px;
+  max-width: 720px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 10px 20px rgba(0,0,0,.05);
+}
+.emptyText {
+  margin: 0 0 12px 0;
+  color: #64748b;
+  font-weight: 600;
+}
+.emptyButton {
+  display: inline-flex;
+  height: 42px;
+  padding: 0 16px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: #7c3aed;
+  color: #fff;
+  border: 1px solid #6d28d9;
+  text-decoration: none;
+  font-weight: 700;
+}
+
 @media (max-width: 1000px) {
   .formCard {
     padding: 30px;

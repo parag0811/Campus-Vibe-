@@ -1,12 +1,13 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import styles from "./event-form.module.css";
-import { getOrg } from "@/lib/api.js"; // Only keep getOrg if you want
+import { useToast } from "@/components/common/toast";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
 const EventForm = () => {
+  const { toast } = useToast();
   const [allowed, setAllowed] = useState(false);
   const [orgId, setOrgId] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -14,6 +15,8 @@ const EventForm = () => {
   const [eventId, setEventId] = useState(null);
   const [errors, setErrors] = useState({});
   const [submitError, setSubmitError] = useState("");
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const confirmTimerRef = useRef(null);
 
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -25,25 +28,47 @@ const EventForm = () => {
       setEventId(editEventId);
     }
 
+    const ac = new AbortController();
+
     async function checkOrganisation() {
       try {
-        const data = await getOrg();
-        if (!data.hasOrganisation) {
-          alert("You need to create an organisation before adding events.");
-          router.push("/admin/organisation");
-        } else {
-          setOrgId(data.organisationId);
+        const res = await fetch(`${API_BASE}/org/organisationAdmin/my-organisation`, {
+          credentials: "include",
+          headers: { "Cache-Control": "no-cache" },
+          signal: ac.signal,
+        });
+
+        if (res.status === 401) {
+          toast.info("Please login to manage events.");
+          router.replace("/login");
+          return;
+        }
+
+        const data = await res.json();
+        if (ac.signal.aborted) return;
+
+        if (res.ok && data?.hasOrganisation && (data.organisation || data.organisationId)) {
+          const oid = String(data.organisationId || data.organisation?._id || "");
+          if (!oid) {
+            toast.error("Could not resolve organisation id");
+            return;
+          }
+          setOrgId(oid);
           setAllowed(true);
           if (editEventId) {
-            await fetchEventData(editEventId, data.organisationId);
+            await fetchEventData(editEventId, oid, ac.signal);
           }
+        } else {
+          toast.info("Create an organisation to add events.");
+          router.push("/create-organisation");
         }
-      } catch (error) {
+      } catch (_) {
         setSubmitError("Failed to verify organisation access");
       }
     }
 
     checkOrganisation();
+    return () => ac.abort();
   }, [searchParams, router]);
 
   const [formData, setFormData] = useState({
@@ -62,20 +87,25 @@ const EventForm = () => {
 
   const [imagePreview, setImagePreview] = useState(null);
 
-  const fetchEventData = async (eventId, organisationId) => {
+  const fetchEventData = async (eventId, organisationId, signal) => {
     try {
       setLoading(true);
       const res = await fetch(
-        `${API_BASE}/organisation/${organisationId}/event/${eventId}`,
-        { credentials: "include" }
+        `${API_BASE}/org-admin/organisation/${organisationId}/event/${eventId}`,
+        { credentials: "include", signal }
       );
+
+      if (res.status === 401) {
+        toast.error("Login required");
+        router.replace("/login");
+        return;
+      }
       if (!res.ok) throw new Error("Failed to load event data");
+
       const eventData = await res.json();
 
-      const formatDate = (dateString) => {
-        if (!dateString) return "";
-        return new Date(dateString).toISOString().split("T")[0];
-      };
+      const formatDate = (dateString) =>
+        !dateString ? "" : new Date(dateString).toISOString().split("T")[0];
 
       setFormData({
         title: eventData.title || "",
@@ -93,10 +123,8 @@ const EventForm = () => {
         posterImage: null,
       });
 
-      if (eventData.imageUrl) {
-        setImagePreview(eventData.imageUrl);
-      }
-    } catch (error) {
+      if (eventData.imageUrl) setImagePreview(eventData.imageUrl);
+    } catch {
       setSubmitError("Failed to load event data");
     } finally {
       setLoading(false);
@@ -105,62 +133,37 @@ const EventForm = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-
-    if (errors[name]) {
-      setErrors((prev) => ({
-        ...prev,
-        [name]: "",
-      }));
-    }
+    setFormData((prev) => ({ ...prev, [name]: value }));
+    if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
   };
 
   const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
-      if (!allowedTypes.includes(file.type)) {
-        setErrors((prev) => ({
-          ...prev,
-          posterImage: "Only .jpg, .png, or .webp images are allowed.",
-        }));
-        return;
-      }
-      const maxSize = 5 * 1024 * 1024;
-      if (file.size > maxSize) {
-        setErrors((prev) => ({
-          ...prev,
-          posterImage: "Image size should be less than 5MB.",
-        }));
-        return;
-      }
-      setFormData((prev) => ({
-        ...prev,
-        posterImage: file,
-      }));
-      setErrors((prev) => ({
-        ...prev,
-        posterImage: "",
-      }));
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result);
-      };
-      reader.readAsDataURL(file);
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
+    if (!allowedTypes.includes(file.type)) {
+      setErrors((prev) => ({ ...prev, posterImage: "Only .jpg, .png, or .webp images are allowed." }));
+      return;
     }
+    if (file.size > 5 * 1024 * 1024) {
+      setErrors((prev) => ({ ...prev, posterImage: "Image size should be less than 5MB." }));
+      return;
+    }
+    setFormData((prev) => ({ ...prev, posterImage: file }));
+    setErrors((prev) => ({ ...prev, posterImage: "" }));
+    const reader = new FileReader();
+    reader.onloadend = () => setImagePreview(reader.result);
+    reader.readAsDataURL(file);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (loading) return;
     setSubmitError("");
     setErrors({});
+
     if (!orgId || !allowed) {
-      setSubmitError(
-        "Organisation access not verified. Please refresh the page."
-      );
+      setSubmitError("Organisation access not verified. Please refresh the page.");
       return;
     }
 
@@ -179,15 +182,13 @@ const EventForm = () => {
         price: formData.price || "0",
         max_attendees: formData.max_attendees || "",
         organiser_contact: formData.organiser_contact,
-      }).forEach(([key, val]) => formDataToSend.append(key, val));
+      }).forEach(([k, v]) => formDataToSend.append(k, v));
 
-      if (formData.posterImage) {
-        formDataToSend.append("image", formData.posterImage);
-      }
+      if (formData.posterImage) formDataToSend.append("image", formData.posterImage);
 
       const endpoint = isEditMode
-        ? `${API_BASE}/organisation/${orgId}/edit-existing-event/${eventId}`
-        : `${API_BASE}/organisation/${orgId}/register-new-event`;
+        ? `${API_BASE}/org-admin/organisation/${orgId}/edit-existing-event/${eventId}`
+        : `${API_BASE}/org-admin/organisation/${orgId}/register-new-event`;
 
       const response = await fetch(endpoint, {
         method: isEditMode ? "PUT" : "POST",
@@ -198,12 +199,15 @@ const EventForm = () => {
       const result = await response.json();
 
       if (!response.ok) {
+        if (response.status === 401) {
+          toast.error("Login required");
+          router.replace("/login");
+          return;
+        }
         if (result?.data && Array.isArray(result.data)) {
           const backendErrors = {};
           result.data.forEach((err) => {
-            if (err.type === "field" && err.path) {
-              backendErrors[err.path] = err.msg;
-            }
+            if (err.type === "field" && err.path) backendErrors[err.path] = err.msg;
           });
           setErrors(backendErrors);
           setSubmitError("Please fix the highlighted fields.");
@@ -213,60 +217,57 @@ const EventForm = () => {
         return;
       }
 
-      alert(result.message);
+      toast.success(result.message || (isEditMode ? "Event updated" : "Event created"));
       router.push("/admin/events");
     } catch (error) {
       setSubmitError(error.message || "Something went wrong!");
+      toast.error("Request failed");
     } finally {
       setLoading(false);
     }
   };
 
   const handleDelete = async () => {
-    if (!orgId || !eventId) return;
+    if (!orgId || !eventId || loading) return;
 
-    const confirmed = window.confirm(
-      "Are you sure you want to delete this event? This action cannot be undone."
-    );
-    if (!confirmed) return;
+    if (!confirmingDelete) {
+      setConfirmingDelete(true);
+      toast.info("Click 'Confirm Delete' to proceed.");
+      if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current);
+      confirmTimerRef.current = setTimeout(() => setConfirmingDelete(false), 5000);
+      return;
+    }
 
     try {
       setLoading(true);
       const response = await fetch(
-        `${API_BASE}/organisation/${orgId}/delete-event/${eventId}`,
-        {
-          method: "DELETE",
-          credentials: "include",
-        }
+        `${API_BASE}/org-admin/organisation/${orgId}/delete-event/${eventId}`,
+        { method: "DELETE", credentials: "include" }
       );
 
       const data = await response.json();
-
       if (!response.ok) {
         throw new Error(data.message || "Failed to delete event.");
       }
 
-      alert("Event deleted successfully.");
+      toast.success("Event deleted successfully.");
       router.push("/admin/events");
     } catch (err) {
       setSubmitError(err.message || "Delete failed");
+      toast.error(err.message || "Delete failed");
     } finally {
       setLoading(false);
+      setConfirmingDelete(false);
     }
   };
 
   if (!allowed) return <p>Checking access...</p>;
-
-  if (loading && isEditMode && !formData.title) {
-    return <p>Loading event data...</p>;
-  }
+  if (loading && isEditMode && !formData.title) return <p>Loading event data...</p>;
 
   return (
     <div className={styles.container}>
       <div className={styles.formWrapper}>
-        <h1 className={styles.title}>
-          {isEditMode ? "Edit Event" : "Create Event"}
-        </h1>
+        <h1 className={styles.title}>{isEditMode ? "Edit Event" : "Create Event"}</h1>
 
         {submitError && <div className={styles.errorAlert}>{submitError}</div>}
 
@@ -506,28 +507,19 @@ const EventForm = () => {
 
           {/* Submit Button */}
           <div className={styles.buttonGroup}>
-            <button
-              type="submit"
-              className={styles.submitButton}
-              disabled={loading}
-            >
-              {loading
-                ? isEditMode
-                  ? "Updating..."
-                  : "Creating..."
-                : isEditMode
-                ? "Update Event"
-                : "Create Event"}
+            <button type="submit" className={styles.submitButton} disabled={loading}>
+              {loading ? (isEditMode ? "Updating..." : "Creating...") : isEditMode ? "Update Event" : "Create Event"}
             </button>
 
             {isEditMode && (
               <button
                 type="button"
-                className={styles.deleteButton}
+                className={`${styles.deleteButton} ${confirmingDelete ? styles.deleteButtonConfirm : ""}`}
                 onClick={handleDelete}
                 disabled={loading}
+                title={confirmingDelete ? "Click to permanently delete" : "Delete this event"}
               >
-                Delete Event
+                {confirmingDelete ? "Confirm Delete" : "Delete Event"}
               </button>
             )}
           </div>

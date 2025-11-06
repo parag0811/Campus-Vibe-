@@ -104,7 +104,6 @@
 
 .actionSection {
   display: grid;
-  /* grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); */
   gap: 2rem;
   margin-bottom: 3rem;
 }
@@ -194,6 +193,19 @@
   margin: 0;
 }
 
+/* NEW: simple description list styles */
+.featureList { 
+  margin: 0.5rem 0 0; 
+  padding-left: 1.1rem; 
+  display: grid; 
+  gap: .5rem; 
+  color: #1f2937;
+}
+.featureItem { line-height: 1.5; }
+.miniLink { color: #7c3aed; font-weight: 700; text-decoration: none; margin-left: 6px; }
+.miniLink:hover { text-decoration: underline; }
+.featureHint { margin-top: 1rem; color: #64748b; font-weight: 500; }
+
 /* Responsive Design */
 @media (max-width: 768px) {
   .container {
@@ -213,6 +225,7 @@
 
   .actionCard {
     padding: 1.5rem;
+    width: 100%;
   }
 
   .actionButton {

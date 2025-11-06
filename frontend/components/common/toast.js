@@ -1,5 +1,5 @@
 "use client";
-import { createContext, useContext, useState, useCallback, useEffect } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, useMemo } from "react";
 
 const ToastContext = createContext();
 
@@ -172,14 +172,19 @@ export const ToastProvider = ({ children }) => {
     setToasts((prev) => [...prev, newToast]);
   }, []);
 
-  const toast = {
-    success: (message) => addToast(message, "success"),
-    error: (message) => addToast(message, "error"),
-    info: (message) => addToast(message, "info"),
-  };
+  const toast = useMemo(
+    () => ({
+      success: (message) => addToast(message, "success"),
+      error: (message) => addToast(message, "error"),
+      info: (message) => addToast(message, "info"),
+    }),
+    [addToast]
+  );
+
+  const contextValue = useMemo(() => ({ toast }), [toast]);
 
   return (
-    <ToastContext.Provider value={{ toast }}>
+    <ToastContext.Provider value={contextValue}>
       {children}
       <ToastContainer toasts={toasts} removeToast={removeToast} />
     </ToastContext.Provider>

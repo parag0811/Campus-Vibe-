@@ -1,13 +1,13 @@
 "use client";
 import { useEffect, useState } from "react";
 import styles from "./organisation.module.css";
-import { getOrg } from "@/lib/api";
-import Alert from "@/components/alert/alert.js";
-
+import { useToast } from "@/components/common/toast";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
-const CreateClub = () => {
+const OrganisationPage = () => {
+  const { toast } = useToast();
+
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -17,90 +17,79 @@ const CreateClub = () => {
   const [imagePreview, setImagePreview] = useState(null);
 
   const [hasOrganisation, setHasOrganisation] = useState(false);
-  const [orgData, setOrgData] = useState(null);
   const [loading, setLoading] = useState(true);
-
   const [validationErrors, setValidationErrors] = useState({});
-
-  const [alert, setAlert] = useState({
-    show: false,
-    type: "info",
-    message: "",
-  });
-
+  const [deleting, setDeleting] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    async function fetchData() {
+    let aborted = false;
+    (async () => {
       try {
-        const data = await getOrg();
-        setHasOrganisation(data.hasOrganisation);
-        setOrgData(data.organisation);
+        const res = await fetch(`${API_BASE}/org/organisationAdmin/my-organisation`, {
+          credentials: "include",
+          headers: { "Cache-Control": "no-cache" },
+        });
 
-        if (data.organisation) {
+        if (res.status === 401) {
+          toast.info("Please login to manage your organisation.");
+          return;
+        }
+
+        const data = await res.json();
+        if (aborted) return;
+
+        if (res.ok && data?.hasOrganisation && data.organisation) {
+          setHasOrganisation(true);
           setFormData({
             title: data.organisation.name || "",
             description: data.organisation.description || "",
             email: data.organisation.contact_email || "",
           });
-
-          if (data.imageUrl) {
-            setImagePreview(data.imageUrl);
-          }
-
-          showAlert("success", "Organisation data loaded successfully!");
+          if (data.imageUrl) setImagePreview(data.imageUrl);
+        } else {
+          setHasOrganisation(false);
         }
       } catch (err) {
-        console.log(err);
-        showAlert("error", "Failed to load organisation data.");
+        console.error(err);
+        toast.error("Failed to load organisation");
       } finally {
-        setLoading(false);
+        if (!aborted) setLoading(false);
       }
-    }
-
-    fetchData();
-  }, []);
-
-  const showAlert = (type, message) => {
-    setAlert({ show: true, type, message });
-  };
-
-  const hideAlert = () => {
-    setAlert({ show: false, type: "info", message: "" });
-  };
+    })();
+    return () => { aborted = true; };
+  }, []); 
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-    setValidationErrors((prev) => ({ ...prev, [name]: null }));
+    setFormData((p) => ({ ...p, [name]: value }));
+    setValidationErrors((p) => ({ ...p, [name]: null }));
   };
 
   const handleImageChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        showAlert("error", "Image size should be less than 5MB");
-        return;
-      }
-      if (!file.type.startsWith("image/")) {
-        showAlert("error", "Please select a valid image file");
-        return;
-      }
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-      setProfileImage(file);
-      const reader = new FileReader();
-      reader.onload = (e) => setImagePreview(e.target.result);
-      reader.readAsDataURL(file);
-      showAlert("success", "Image selected successfully!");
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image must be less than 5MB");
+      return;
     }
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select a valid image");
+      return;
+    }
+    setProfileImage(file);
+    const reader = new FileReader();
+    reader.onload = (ev) => setImagePreview(ev.target.result);
+    reader.readAsDataURL(file);
+    toast.success("Image selected");
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setValidationErrors({});
-
     if (!hasOrganisation) {
-      showAlert("info", "Create an organisation to continue.");
-      window.location.href = "/create-organisation";
+      toast.info("Create an organisation first");
       return;
     }
 
@@ -111,60 +100,62 @@ const CreateClub = () => {
     if (profileImage) form.append("image", profileImage);
 
     try {
-      showAlert("info", "Processing your request...");
-
-      const res = await fetch(`${API_BASE}/organisationAdmin/update-organisation-detail`, {
-        method: "PUT",
-        credentials: "include",
-        body: form,
-      });
-
+      setSaving(true);
+      const res = await fetch(
+        `${API_BASE}/org/organisationAdmin/update-organisation-detail`,
+        {
+          method: "PUT",
+          credentials: "include",
+          body: form,
+        }
+      );
       const data = await res.json();
 
       if (res.ok) {
-        showAlert("success", data.message || "Organisation saved!");
-        if (!profileImage && imagePreview) setImagePreview(imagePreview);
+        toast.success(data.message || "Organisation updated");
+      } else if (res.status === 422 && Array.isArray(data.data)) {
+        const map = {};
+        data.data.forEach((err) => {
+          if (err.path && !map[err.path]) map[err.path] = err.msg;
+        });
+        setValidationErrors(map);
+        toast.error(data.message || "Validation failed");
       } else {
-        if (Array.isArray(data.data)) {
-          const errorMap = {};
-          data.data.forEach((err) => {
-            if (!errorMap[err.path]) errorMap[err.path] = err.msg;
-          });
-          setValidationErrors(errorMap);
-        } else {
-          showAlert("error", data.message || "Something went wrong.");
-        }
+        toast.error(data.message || "Update failed");
       }
     } catch (err) {
-      console.error("Error:", err);
-      showAlert("error", "Network error. Please try again.");
+      console.error(err);
+      toast.error("Network error");
+    } finally {
+      setSaving(false);
     }
   };
 
-  const [deleting, setDeleting] = useState(false);
-
   const handleDeleteOrganisation = async () => {
-    if (!window.confirm("Are you sure you want to delete your organisation? This action cannot be undone.")) {
+    if (!hasOrganisation) return;
+    if (!window.confirm("Delete your organisation? This cannot be undone."))
       return;
-    }
+
     setDeleting(true);
     try {
-      const res = await fetch(`${API_BASE}/organisationAdmin/delete-organisation`, {
-        method: "DELETE",
-        credentials: "include",
-      });
+      const res = await fetch(
+        `${API_BASE}/org/organisationAdmin/delete-organisation`,
+        {
+          method: "DELETE",
+          credentials: "include",
+        }
+      );
       const data = await res.json();
       if (res.ok) {
-        showAlert("success", data.message || "Organisation deleted successfully.");
+        toast.success(data.message || "Organisation deleted");
         setHasOrganisation(false);
-        setOrgData(null);
         setFormData({ title: "", description: "", email: "" });
         setImagePreview(null);
       } else {
-        showAlert("error", data.message || "Failed to delete organisation.");
+        toast.error(data.message || "Failed to delete");
       }
     } catch (err) {
-      showAlert("error", "Network error. Please try again.");
+      toast.error("Network error");
     } finally {
       setDeleting(false);
     }
@@ -182,122 +173,125 @@ const CreateClub = () => {
 
   return (
     <div className={styles.container}>
-      {alert.show && (
-        <Alert
-          type={alert.type}
-          message={alert.message}
-          onClose={hideAlert}
-          autoClose={true}
-          duration={4000}
-        />
-      )}
-
       <h1 className={styles.title}>
-        {hasOrganisation
-          ? "Update your Organisation!"
-          : "Create your Organisation!"}
+        {hasOrganisation ? "Update your Organisation" : "No Organisation yet"}
       </h1>
 
-      <div className={styles.formCard}>
-        <div className={styles.formWrapper}>
-          <form onSubmit={handleSubmit} className={styles.form}>
-            <div className={styles.imagePickerSection}>
-              <div className={styles.imagePickerWrapper}>
-                <input
-                  type="file"
-                  id="profileImage"
-                  accept="image/*"
-                  onChange={handleImageChange}
-                  className={styles.imageInput}
-                />
-                <label htmlFor="profileImage" className={styles.imageLabel}>
-                  {imagePreview ? (
-                    <img
-                      src={imagePreview}
-                      alt="Profile preview"
-                      className={styles.previewImage}
-                    />
-                  ) : (
-                    <div className={styles.imagePlaceholder}>
-                      <span className={styles.uploadText}>Add Photo</span>
-                    </div>
-                  )}
-                </label>
-              </div>
-            </div>
-
-            <div className={styles.formGroup}>
-              <label htmlFor="title" className={styles.label}>
-                Organisation Title
-              </label>
-              <input
-                type="text"
-                id="title"
-                name="title"
-                value={formData.title}
-                onChange={handleInputChange}
-                className={styles.input}
-              />
-              {validationErrors.name && (
-                <p className={styles.errorText}>{validationErrors.name}</p>
-              )}
-            </div>
-
-            <div className={styles.formGroup}>
-              <label htmlFor="description" className={styles.label}>
-                Description
-              </label>
-              <textarea
-                id="description"
-                name="description"
-                value={formData.description}
-                onChange={handleInputChange}
-                className={styles.textarea}
-                rows={4}
-              />
-              {validationErrors.description && (
-                <p className={styles.errorText}>
-                  {validationErrors.description}
-                </p>
-              )}
-            </div>
-
-            <div className={styles.formGroup}>
-              <label htmlFor="email" className={styles.label}>
-                Email ID
-              </label>
-              <input
-                type="email"
-                id="email"
-                name="email"
-                value={formData.email}
-                onChange={handleInputChange}
-                className={styles.input}
-              />
-              {validationErrors.contact_email && (
-                <p className={styles.errorText}>
-                  {validationErrors.contact_email}
-                </p>
-              )}
-            </div>
-
-            <button type="submit" className={styles.submitButton}>
-              {hasOrganisation ? "Update Organisation" : "Create Organisation"}
-            </button>
-            {hasOrganisation && (
-            <button
-              className={styles.deleteButton}
-              onClick={handleDeleteOrganisation}
-              disabled={deleting}
-            >
-              {deleting ? "Deleting..." : "Delete Organisation"}
-            </button>
-          )}
-          </form>
+      {!hasOrganisation ? (
+        <div className={styles.emptyState}>
+          <p className={styles.emptyText}>
+            You haven’t created an organisation yet. Create one to start managing
+            events and admins.
+          </p>
+          <a
+            href="/create-organisation"
+            className={styles.emptyButton}
+          >
+            Create Organisation
+          </a>
         </div>
-      </div>
+      ) : (
+        <div className={styles.formCard}>
+          <div className={styles.formWrapper}>
+            <form onSubmit={handleSubmit} className={styles.form}>
+              <div className={styles.imagePickerSection}>
+                <div className={styles.imagePickerWrapper}>
+                  <input
+                    type="file"
+                    id="profileImage"
+                    accept="image/*"
+                    onChange={handleImageChange}
+                    className={styles.imageInput}
+                  />
+                  <label htmlFor="profileImage" className={styles.imageLabel}>
+                    {imagePreview ? (
+                      <img
+                        src={imagePreview}
+                        alt="Org logo"
+                        className={styles.previewImage}
+                      />
+                    ) : (
+                      <div className={styles.imagePlaceholder}>
+                        <span className={styles.uploadText}>Add Photo</span>
+                      </div>
+                    )}
+                  </label>
+                </div>
+              </div>
+
+              <div className={styles.formGroup}>
+                <label htmlFor="title" className={styles.label}>
+                  Organisation Title
+                </label>
+                <input
+                  type="text"
+                  id="title"
+                  name="title"
+                  value={formData.title}
+                  onChange={handleInputChange}
+                  className={styles.input}
+                />
+                {validationErrors.name && (
+                  <p className={styles.errorText}>{validationErrors.name}</p>
+                )}
+              </div>
+
+              <div className={styles.formGroup}>
+                <label htmlFor="description" className={styles.label}>
+                  Description
+                </label>
+                <textarea
+                  id="description"
+                  name="description"
+                  value={formData.description}
+                  onChange={handleInputChange}
+                  className={styles.textarea}
+                  rows={4}
+                />
+                {validationErrors.description && (
+                  <p className={styles.errorText}>
+                    {validationErrors.description}
+                  </p>
+                )}
+              </div>
+
+              <div className={styles.formGroup}>
+                <label htmlFor="email" className={styles.label}>
+                  Email ID
+                </label>
+                <input
+                  type="email"
+                  id="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleInputChange}
+                  className={styles.input}
+                />
+                {validationErrors.contact_email && (
+                  <p className={styles.errorText}>
+                    {validationErrors.contact_email}
+                  </p>
+                )}
+              </div>
+
+              <button type="submit" className={styles.submitButton} disabled={saving}>
+                {saving ? "Saving..." : "Update Organisation"}
+              </button>
+
+              <button
+                type="button"
+                className={styles.deleteButton}
+                onClick={handleDeleteOrganisation}
+                disabled={deleting}
+              >
+                {deleting ? "Deleting..." : "Delete Organisation"}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
-export default CreateClub;
+export default OrganisationPage;
