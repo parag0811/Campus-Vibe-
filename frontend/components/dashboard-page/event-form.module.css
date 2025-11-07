@@ -345,6 +345,33 @@
   content: " *";
   color: #ef4444;
 }
+.loadingCard {
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  border-radius: 14px;
+  padding: 28px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 4px 18px rgba(0,0,0,.06);
+  margin-bottom: 18px;
+}
+.spinner {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 4px solid #ede9fe;
+  border-top-color: #7c3aed;
+  animation: spin .9s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loadingText {
+  margin: 0;
+  font-weight: 600;
+  color: #475569;
+  letter-spacing: .01em;
+}
 /* Responsive Design */
 @media (max-width: 1024px) {
   .container {

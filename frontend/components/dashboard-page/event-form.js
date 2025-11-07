@@ -1,11 +1,12 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import styles from "./event-form.module.css";
 import { useToast } from "@/components/common/toast";
+import { useRef } from "react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
-
+const ORG_BASE = `${API_BASE}/org/organisationAdmin`; 
 const EventForm = () => {
   const { toast } = useToast();
   const [allowed, setAllowed] = useState(false);
@@ -21,21 +22,25 @@ const EventForm = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  useEffect(() => {
-    const editEventId = searchParams.get("edit");
-    if (editEventId) {
-      setIsEditMode(true);
-      setEventId(editEventId);
-    }
+  const [orgLoading, setOrgLoading] = useState(true);
+  const [eventLoading, setEventLoading] = useState(false);
 
+  const editParam = searchParams.get("edit");
+  useEffect(() => {
+    setIsEditMode(Boolean(editParam));
+    setEventId(editParam || null);
+  }, [editParam]);
+
+  useEffect(() => {
     const ac = new AbortController();
 
-    async function checkOrganisation() {
+    async function loadOrg() {
       try {
-        const res = await fetch(`${API_BASE}/org/organisationAdmin/my-organisation`, {
+        setOrgLoading(true);
+        const res = await fetch(`${ORG_BASE}/my-organisation`, {
           credentials: "include",
-          headers: { "Cache-Control": "no-cache" },
           signal: ac.signal,
+          headers: { "Cache-Control": "no-cache" },
         });
 
         if (res.status === 401) {
@@ -50,26 +55,74 @@ const EventForm = () => {
         if (res.ok && data?.hasOrganisation && (data.organisation || data.organisationId)) {
           const oid = String(data.organisationId || data.organisation?._id || "");
           if (!oid) {
-            toast.error("Could not resolve organisation id");
+            toast.error("Organisation id missing");
             return;
           }
-          setOrgId(oid);
-          setAllowed(true);
-          if (editEventId) {
-            await fetchEventData(editEventId, oid, ac.signal);
-          }
+            setOrgId(oid);
+            setAllowed(true);
         } else {
           toast.info("Create an organisation to add events.");
           router.push("/create-organisation");
         }
-      } catch (_) {
-        setSubmitError("Failed to verify organisation access");
+      } catch (err) {
+        if (err?.name === "AbortError") return;
+        setSubmitError("Could not load organisation. Retry or refresh.");
+      } finally {
+        if (!ac.signal.aborted) setOrgLoading(false);
       }
     }
 
-    checkOrganisation();
+    loadOrg();
     return () => ac.abort();
-  }, [searchParams, router]);
+  }, [router, toast, ORG_BASE]);
+
+  // Load event data (edit mode)
+  useEffect(() => {
+    if (!isEditMode || !eventId || !orgId) return;
+    const ac = new AbortController();
+
+    async function loadEvent() {
+      try {
+        setEventLoading(true);
+        const res = await fetch(
+          `${API_BASE}/org-admin/organisation/${orgId}/event/${eventId}`,
+          { credentials: "include", signal: ac.signal }
+        );
+        if (res.status === 401) {
+          toast.error("Login required");
+          router.replace("/login");
+          return;
+        }
+        if (!res.ok) throw new Error("Failed to load event data");
+
+        const eventData = await res.json();
+        const fmt = (d) => (d ? new Date(d).toISOString().split("T")[0] : "");
+        setFormData((prev) => ({
+          ...prev,
+          title: eventData.title || "",
+            description: eventData.description || "",
+            registeration_deadline: fmt(eventData.registeration_deadline),
+            start_date: fmt(eventData.start_date),
+            end_date: fmt(eventData.end_date),
+            venue: eventData.venue || "",
+            mode: eventData.mode || "offline",
+            price: eventData.price ? String(eventData.price) : "",
+            max_attendees: eventData.max_attendees ? String(eventData.max_attendees) : "",
+            organiser_contact: eventData.organiser_contact || "",
+            posterImage: null,
+        }));
+        if (eventData.imageUrl) setImagePreview(eventData.imageUrl);
+      } catch (e) {
+        if (e?.name === "AbortError") return;
+        setSubmitError("Failed to load event data.");
+      } finally {
+        if (!ac.signal.aborted) setEventLoading(false);
+      }
+    }
+
+    loadEvent();
+    return () => ac.abort();
+  }, [isEditMode, eventId, orgId, router, toast]);
 
   const [formData, setFormData] = useState({
     title: "",
@@ -86,50 +139,6 @@ const EventForm = () => {
   });
 
   const [imagePreview, setImagePreview] = useState(null);
-
-  const fetchEventData = async (eventId, organisationId, signal) => {
-    try {
-      setLoading(true);
-      const res = await fetch(
-        `${API_BASE}/org-admin/organisation/${organisationId}/event/${eventId}`,
-        { credentials: "include", signal }
-      );
-
-      if (res.status === 401) {
-        toast.error("Login required");
-        router.replace("/login");
-        return;
-      }
-      if (!res.ok) throw new Error("Failed to load event data");
-
-      const eventData = await res.json();
-
-      const formatDate = (dateString) =>
-        !dateString ? "" : new Date(dateString).toISOString().split("T")[0];
-
-      setFormData({
-        title: eventData.title || "",
-        description: eventData.description || "",
-        registeration_deadline: formatDate(eventData.registeration_deadline),
-        start_date: formatDate(eventData.start_date),
-        end_date: formatDate(eventData.end_date),
-        venue: eventData.venue || "",
-        mode: eventData.mode || "offline",
-        price: eventData.price ? eventData.price.toString() : "",
-        max_attendees: eventData.max_attendees
-          ? eventData.max_attendees.toString()
-          : "",
-        organiser_contact: eventData.organiser_contact || "",
-        posterImage: null,
-      });
-
-      if (eventData.imageUrl) setImagePreview(eventData.imageUrl);
-    } catch {
-      setSubmitError("Failed to load event data");
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -261,9 +270,7 @@ const EventForm = () => {
     }
   };
 
-  if (!allowed) return <p>Checking access...</p>;
-  if (loading && isEditMode && !formData.title) return <p>Loading event data...</p>;
-
+  // Render
   return (
     <div className={styles.container}>
       <div className={styles.formWrapper}>
@@ -271,259 +278,270 @@ const EventForm = () => {
 
         {submitError && <div className={styles.errorAlert}>{submitError}</div>}
 
-        <form onSubmit={handleSubmit} className={styles.form}>
-          {/* Event Title */}
-          <div className={styles.inputGroup}>
-            <label className={styles.label}>Event Title *</label>
-            <input
-              type="text"
-              name="title"
-              value={formData.title}
-              onChange={handleInputChange}
-              placeholder="Enter event title..."
-              className={`${styles.input} ${
-                errors.title ? styles.inputError : ""
-              }`}
-              // required
-            />
-            {errors.title && (
-              <span className={styles.errorText}>{errors.title}</span>
-            )}
+        {(orgLoading || (isEditMode && eventLoading)) && (
+          <div className={styles.loadingCard}>
+            <div className={styles.spinner} />
+            <p className={styles.loadingText}>
+              {orgLoading ? "Checking access..." : "Loading event data..."}
+            </p>
           </div>
+        )}
 
-          {/* Date Row */}
-          <div className={styles.row}>
-            <div className={styles.inputGroupHalf}>
-              <label className={styles.label}>Registration Deadline *</label>
-              <input
-                type="date"
-                name="registeration_deadline"
-                value={formData.registeration_deadline}
-                onChange={handleInputChange}
-                className={`${styles.input} ${
-                  errors.registeration_deadline ? styles.inputError : ""
-                }`}
-                // required
-              />
-              {errors.registeration_deadline && (
-                <span className={styles.errorText}>
-                  {errors.registeration_deadline}
-                </span>
-              )}
-            </div>
-            <div className={styles.inputGroupHalf}>
-              <label className={styles.label}>Start Date *</label>
-              <input
-                type="date"
-                name="start_date"
-                value={formData.start_date}
-                onChange={handleInputChange}
-                className={`${styles.input} ${
-                  errors.start_date ? styles.inputError : ""
-                }`}
-                // required
-              />
-              {errors.start_date && (
-                <span className={styles.errorText}>{errors.start_date}</span>
-              )}
-            </div>
-            <div className={styles.inputGroupHalf}>
-              <label className={styles.label}>End Date *</label>
-              <input
-                type="date"
-                name="end_date"
-                value={formData.end_date}
-                onChange={handleInputChange}
-                className={`${styles.input} ${
-                  errors.end_date ? styles.inputError : ""
-                }`}
-                // required
-              />
-              {errors.end_date && (
-                <span className={styles.errorText}>{errors.end_date}</span>
-              )}
-            </div>
-          </div>
-
-          {/* Venue */}
-          <div className={styles.inputGroup}>
-            <label className={styles.label}>Venue *</label>
-            <input
-              type="text"
-              name="venue"
-              value={formData.venue}
-              onChange={handleInputChange}
-              placeholder="Enter event venue..."
-              className={`${styles.input} ${
-                errors.venue ? styles.inputError : ""
-              }`}
-              // required
-            />
-            {errors.venue && (
-              <span className={styles.errorText}>{errors.venue}</span>
-            )}
-          </div>
-
-          {/* Mode and Price Row */}
-          <div className={styles.row}>
-            <div className={styles.inputGroupHalf}>
-              <label className={styles.label}>Event Mode *</label>
-              <select
-                name="mode"
-                value={formData.mode}
-                onChange={handleInputChange}
-                className={styles.select}
-                // required
-              >
-                <option value="offline">Offline</option>
-                <option value="online">Online</option>
-                <option value="hybrid">Hybrid</option>
-              </select>
-            </div>
-            <div className={styles.inputGroupHalf}>
-              <label className={styles.label}>Price (₹)</label>
-              <input
-                type="number"
-                name="price"
-                value={formData.price}
-                onChange={handleInputChange}
-                placeholder="0"
-                className={`${styles.input} ${
-                  errors.price ? styles.inputError : ""
-                }`}
-                min="0"
-                step="0.01"
-              />
-              {errors.price && (
-                <span className={styles.errorText}>{errors.price}</span>
-              )}
-            </div>
-          </div>
-
-          {/* Attendees and Contact Row */}
-          <div className={styles.row}>
-            <div className={styles.inputGroupHalf}>
-              <label className={styles.label}>Maximum Attendees</label>
-              <input
-                type="number"
-                name="max_attendees"
-                value={formData.max_attendees}
-                onChange={handleInputChange}
-                placeholder="Enter maximum attendees..."
-                className={`${styles.input} ${
-                  errors.max_attendees ? styles.inputError : ""
-                }`}
-                min="1"
-              />
-              {errors.max_attendees && (
-                <span className={styles.errorText}>{errors.max_attendees}</span>
-              )}
-            </div>
-            <div className={styles.inputGroupHalf}>
-              <label className={styles.label}>Organiser Contact</label>
+        {!orgLoading && allowed && (!isEditMode || !eventLoading) && (
+          <form onSubmit={handleSubmit} className={styles.form}>
+            {/* Event Title */}
+            <div className={styles.inputGroup}>
+              <label className={styles.label}>Event Title *</label>
               <input
                 type="text"
-                name="organiser_contact"
-                value={formData.organiser_contact}
+                name="title"
+                value={formData.title}
                 onChange={handleInputChange}
-                placeholder="Phone number or email..."
-                className={styles.input}
-              />
-            </div>
-          </div>
-
-          {/* Event Description Section */}
-          <div className={styles.descriptionSection}>
-            <h2 className={styles.sectionTitle}>Event Details</h2>
-
-            {/* Poster Image */}
-            <div className={styles.inputGroup}>
-              <label className={styles.label}>
-                Event Poster Image {!isEditMode && "*"}
-              </label>
-              <div className={styles.fileInputWrapper}>
-                <input
-                  type="file"
-                  name="posterImage"
-                  onChange={handleFileChange}
-                  accept="image/jpeg,image/png,image/webp"
-                  className={styles.fileInput}
-                  id="poster-image"
-                />
-                <label htmlFor="poster-image" className={styles.fileInputLabel}>
-                  <div
-                    className={`${styles.uploadArea} ${
-                      errors.posterImage ? styles.uploadAreaError : ""
-                    }`}
-                  >
-                    {imagePreview ? (
-                      <div className={styles.imagePreview}>
-                        <img
-                          src={imagePreview}
-                          alt="Poster preview"
-                          className={styles.previewImage}
-                        />
-                        <div className={styles.imageOverlay}>
-                          <span>🖼️</span>
-                          <span>
-                            Click to {isEditMode ? "change" : "upload"} poster
-                          </span>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className={styles.uploadPlaceholder}>
-                        <span>🖼️</span>
-                        <span>Click to upload poster image</span>
-                        {!isEditMode && <small>Required field</small>}
-                      </div>
-                    )}
-                  </div>
-                </label>
-              </div>
-              {errors.posterImage && (
-                <span className={styles.errorText}>{errors.posterImage}</span>
-              )}
-            </div>
-
-            {/* Description */}
-            <div className={styles.inputGroup}>
-              <label className={styles.label}>Event Description *</label>
-              <textarea
-                name="description"
-                value={formData.description}
-                onChange={handleInputChange}
-                placeholder="Describe your event in detail..."
-                className={`${styles.textarea} ${
-                  errors.description ? styles.inputError : ""
+                placeholder="Enter event title..."
+                className={`${styles.input} ${
+                  errors.title ? styles.inputError : ""
                 }`}
-                rows={6}
                 // required
               />
-              {errors.description && (
-                <span className={styles.errorText}>{errors.description}</span>
+              {errors.title && (
+                <span className={styles.errorText}>{errors.title}</span>
               )}
             </div>
-          </div>
 
-          {/* Submit Button */}
-          <div className={styles.buttonGroup}>
-            <button type="submit" className={styles.submitButton} disabled={loading}>
-              {loading ? (isEditMode ? "Updating..." : "Creating...") : isEditMode ? "Update Event" : "Create Event"}
-            </button>
+            {/* Date Row */}
+            <div className={styles.row}>
+              <div className={styles.inputGroupHalf}>
+                <label className={styles.label}>Registration Deadline *</label>
+                <input
+                  type="date"
+                  name="registeration_deadline"
+                  value={formData.registeration_deadline}
+                  onChange={handleInputChange}
+                  className={`${styles.input} ${
+                    errors.registeration_deadline ? styles.inputError : ""
+                  }`}
+                  // required
+                />
+                {errors.registeration_deadline && (
+                  <span className={styles.errorText}>
+                    {errors.registeration_deadline}
+                  </span>
+                )}
+              </div>
+              <div className={styles.inputGroupHalf}>
+                <label className={styles.label}>Start Date *</label>
+                <input
+                  type="date"
+                  name="start_date"
+                  value={formData.start_date}
+                  onChange={handleInputChange}
+                  className={`${styles.input} ${
+                    errors.start_date ? styles.inputError : ""
+                  }`}
+                  // required
+                />
+                {errors.start_date && (
+                  <span className={styles.errorText}>{errors.start_date}</span>
+                )}
+              </div>
+              <div className={styles.inputGroupHalf}>
+                <label className={styles.label}>End Date *</label>
+                <input
+                  type="date"
+                  name="end_date"
+                  value={formData.end_date}
+                  onChange={handleInputChange}
+                  className={`${styles.input} ${
+                    errors.end_date ? styles.inputError : ""
+                  }`}
+                  // required
+                />
+                {errors.end_date && (
+                  <span className={styles.errorText}>{errors.end_date}</span>
+                )}
+              </div>
+            </div>
 
-            {isEditMode && (
-              <button
-                type="button"
-                className={`${styles.deleteButton} ${confirmingDelete ? styles.deleteButtonConfirm : ""}`}
-                onClick={handleDelete}
-                disabled={loading}
-                title={confirmingDelete ? "Click to permanently delete" : "Delete this event"}
-              >
-                {confirmingDelete ? "Confirm Delete" : "Delete Event"}
+            {/* Venue */}
+            <div className={styles.inputGroup}>
+              <label className={styles.label}>Venue *</label>
+              <input
+                type="text"
+                name="venue"
+                value={formData.venue}
+                onChange={handleInputChange}
+                placeholder="Enter event venue..."
+                className={`${styles.input} ${
+                  errors.venue ? styles.inputError : ""
+                }`}
+                // required
+              />
+              {errors.venue && (
+                <span className={styles.errorText}>{errors.venue}</span>
+              )}
+            </div>
+
+            {/* Mode and Price Row */}
+            <div className={styles.row}>
+              <div className={styles.inputGroupHalf}>
+                <label className={styles.label}>Event Mode *</label>
+                <select
+                  name="mode"
+                  value={formData.mode}
+                  onChange={handleInputChange}
+                  className={styles.select}
+                  // required
+                >
+                  <option value="offline">Offline</option>
+                  <option value="online">Online</option>
+                  <option value="hybrid">Hybrid</option>
+                </select>
+              </div>
+              <div className={styles.inputGroupHalf}>
+                <label className={styles.label}>Price (₹)</label>
+                <input
+                  type="number"
+                  name="price"
+                  value={formData.price}
+                  onChange={handleInputChange}
+                  placeholder="0"
+                  className={`${styles.input} ${
+                    errors.price ? styles.inputError : ""
+                  }`}
+                  min="0"
+                  step="0.01"
+                />
+                {errors.price && (
+                  <span className={styles.errorText}>{errors.price}</span>
+                )}
+              </div>
+            </div>
+
+            {/* Attendees and Contact Row */}
+            <div className={styles.row}>
+              <div className={styles.inputGroupHalf}>
+                <label className={styles.label}>Maximum Attendees</label>
+                <input
+                  type="number"
+                  name="max_attendees"
+                  value={formData.max_attendees}
+                  onChange={handleInputChange}
+                  placeholder="Enter maximum attendees..."
+                  className={`${styles.input} ${
+                    errors.max_attendees ? styles.inputError : ""
+                  }`}
+                  min="1"
+                />
+                {errors.max_attendees && (
+                  <span className={styles.errorText}>{errors.max_attendees}</span>
+                )}
+              </div>
+              <div className={styles.inputGroupHalf}>
+                <label className={styles.label}>Organiser Contact</label>
+                <input
+                  type="text"
+                  name="organiser_contact"
+                  value={formData.organiser_contact}
+                  onChange={handleInputChange}
+                  placeholder="Phone number or email..."
+                  className={styles.input}
+                />
+              </div>
+            </div>
+
+            {/* Event Description Section */}
+            <div className={styles.descriptionSection}>
+              <h2 className={styles.sectionTitle}>Event Details</h2>
+
+              {/* Poster Image */}
+              <div className={styles.inputGroup}>
+                <label className={styles.label}>
+                  Event Poster Image {!isEditMode && "*"}
+                </label>
+                <div className={styles.fileInputWrapper}>
+                  <input
+                    type="file"
+                    name="posterImage"
+                    onChange={handleFileChange}
+                    accept="image/jpeg,image/png,image/webp"
+                    className={styles.fileInput}
+                    id="poster-image"
+                  />
+                  <label htmlFor="poster-image" className={styles.fileInputLabel}>
+                    <div
+                      className={`${styles.uploadArea} ${
+                        errors.posterImage ? styles.uploadAreaError : ""
+                      }`}
+                    >
+                      {imagePreview ? (
+                        <div className={styles.imagePreview}>
+                          <img
+                            src={imagePreview}
+                            alt="Poster preview"
+                            className={styles.previewImage}
+                          />
+                          <div className={styles.imageOverlay}>
+                            <span>🖼️</span>
+                            <span>
+                              Click to {isEditMode ? "change" : "upload"} poster
+                            </span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className={styles.uploadPlaceholder}>
+                          <span>🖼️</span>
+                          <span>Click to upload poster image</span>
+                          {!isEditMode && <small>Required field</small>}
+                        </div>
+                      )}
+                    </div>
+                  </label>
+                </div>
+                {errors.posterImage && (
+                  <span className={styles.errorText}>{errors.posterImage}</span>
+                )}
+              </div>
+
+              {/* Description */}
+              <div className={styles.inputGroup}>
+                <label className={styles.label}>Event Description *</label>
+                <textarea
+                  name="description"
+                  value={formData.description}
+                  onChange={handleInputChange}
+                  placeholder="Describe your event in detail..."
+                  className={`${styles.textarea} ${
+                    errors.description ? styles.inputError : ""
+                  }`}
+                  rows={6}
+                  // required
+                />
+                {errors.description && (
+                  <span className={styles.errorText}>{errors.description}</span>
+                )}
+              </div>
+            </div>
+
+            {/* Submit Button */}
+            <div className={styles.buttonGroup}>
+              <button type="submit" className={styles.submitButton} disabled={loading}>
+                {loading ? (isEditMode ? "Updating..." : "Creating...") : isEditMode ? "Update Event" : "Create Event"}
               </button>
-            )}
-          </div>
-        </form>
+
+              {isEditMode && (
+                <button
+                  type="button"
+                  className={`${styles.deleteButton} ${confirmingDelete ? styles.deleteButtonConfirm : ""}`}
+                  onClick={handleDelete}
+                  disabled={loading}
+                  title={confirmingDelete ? "Click to permanently delete" : "Delete this event"}
+                >
+                  {confirmingDelete ? "Confirm Delete" : "Delete Event"}
+                </button>
+              )}
+            </div>
+          </form>
+        )}
       </div>
     </div>
   );
