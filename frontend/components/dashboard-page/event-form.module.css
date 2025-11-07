@@ -476,3 +476,42 @@
     margin-top: 1rem;
   }
 }
+
+.input[type="date"],
+.input[type="time"],
+.input[type="datetime-local"] {
+  padding-right: 2.75rem;
+  background-color: #fff;
+  position: relative;
+}
+
+.input[type="date"]::-webkit-calendar-picker-indicator,
+.input[type="time"]::-webkit-calendar-picker-indicator,
+.input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  opacity: 1;
+  display: block;
+  cursor: pointer;
+  width: 20px;
+  height: 20px;
+  margin-right: 8px;   
+  filter: invert(33%) sepia(83%) saturate(2200%) hue-rotate(252deg) brightness(95%) contrast(92%);
+}
+
+.input[type="date"]::-webkit-inner-spin-button,
+.input[type="datetime-local"]::-webkit-inner-spin-button {
+  display: block;
+}
+
+.input[type="date"]::-webkit-clear-button,
+.input[type="datetime-local"]::-webkit-clear-button {
+  display: block;
+}
+
+/* Firefox: allow native icon sizing */
+@supports (-moz-appearance: none) {
+  .input[type="date"],
+  .input[type="time"],
+  .input[type="datetime-local"] {
+    padding-right: 1.75rem;
+  }
+}

@@ -7,6 +7,21 @@ import { useRef } from "react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 const ORG_BASE = `${API_BASE}/org/organisationAdmin`; 
+
+// Helper to format a date string to input[type=datetime-local] value (local timezone)
+const toLocalInputValue = (d) => {
+  if (!d) return "";
+  const date = new Date(d);
+  if (isNaN(date)) return "";
+  const pad = (n) => String(n).padStart(2, "0");
+  const yyyy = date.getFullYear();
+  const mm = pad(date.getMonth() + 1);
+  const dd = pad(date.getDate());
+  const hh = pad(date.getHours());
+  const mi = pad(date.getMinutes());
+  return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
+};
+
 const EventForm = () => {
   const { toast } = useToast();
   const [allowed, setAllowed] = useState(false);
@@ -96,20 +111,19 @@ const EventForm = () => {
         if (!res.ok) throw new Error("Failed to load event data");
 
         const eventData = await res.json();
-        const fmt = (d) => (d ? new Date(d).toISOString().split("T")[0] : "");
         setFormData((prev) => ({
           ...prev,
           title: eventData.title || "",
-            description: eventData.description || "",
-            registeration_deadline: fmt(eventData.registeration_deadline),
-            start_date: fmt(eventData.start_date),
-            end_date: fmt(eventData.end_date),
-            venue: eventData.venue || "",
-            mode: eventData.mode || "offline",
-            price: eventData.price ? String(eventData.price) : "",
-            max_attendees: eventData.max_attendees ? String(eventData.max_attendees) : "",
-            organiser_contact: eventData.organiser_contact || "",
-            posterImage: null,
+          description: eventData.description || "",
+          registeration_deadline: toLocalInputValue(eventData.registeration_deadline),
+          start_date: toLocalInputValue(eventData.start_date),
+          end_date: toLocalInputValue(eventData.end_date),
+          venue: eventData.venue || "",
+          mode: eventData.mode || "offline",
+          price: eventData.price ? String(eventData.price) : "",
+          max_attendees: eventData.max_attendees ? String(eventData.max_attendees) : "",
+          organiser_contact: eventData.organiser_contact || "",
+          posterImage: null,
         }));
         if (eventData.imageUrl) setImagePreview(eventData.imageUrl);
       } catch (e) {
@@ -298,6 +312,8 @@ const EventForm = () => {
   };
 
   // Render
+  const nowLocal = toLocalInputValue(new Date());
+  const startLocal = formData.start_date || "";
   return (
     <div className={styles.container}>
       <div className={styles.formWrapper}>
@@ -325,14 +341,9 @@ const EventForm = () => {
                 value={formData.title}
                 onChange={handleInputChange}
                 placeholder="Enter event title..."
-                className={`${styles.input} ${
-                  errors.title ? styles.inputError : ""
-                }`}
-                // required
+                className={`${styles.input} ${errors.title ? styles.inputError : ""}`}
               />
-              {errors.title && (
-                <span className={styles.errorText}>{errors.title}</span>
-              )}
+              {errors.title && <span className={styles.errorText}>{errors.title}</span>}
             </div>
 
             {/* Date Row */}
@@ -344,12 +355,12 @@ const EventForm = () => {
                   name="registeration_deadline"
                   value={formData.registeration_deadline}
                   onChange={handleInputChange}
+                  min={nowLocal}
+                  max={startLocal || undefined}
                   className={`${styles.input} ${errors.registeration_deadline ? styles.inputError : ""}`}
                 />
                 {errors.registeration_deadline && (
-                  <span className={styles.errorText}>
-                    {errors.registeration_deadline}
-                  </span>
+                  <span className={styles.errorText}>{errors.registeration_deadline}</span>
                 )}
               </div>
               <div className={styles.inputGroupHalf}>
@@ -359,11 +370,10 @@ const EventForm = () => {
                   name="start_date"
                   value={formData.start_date}
                   onChange={handleInputChange}
+                  min={nowLocal}
                   className={`${styles.input} ${errors.start_date ? styles.inputError : ""}`}
                 />
-                {errors.start_date && (
-                  <span className={styles.errorText}>{errors.start_date}</span>
-                )}
+                {errors.start_date && <span className={styles.errorText}>{errors.start_date}</span>}
               </div>
               <div className={styles.inputGroupHalf}>
                 <label className={styles.label}>End Date *</label>
@@ -372,11 +382,10 @@ const EventForm = () => {
                   name="end_date"
                   value={formData.end_date}
                   onChange={handleInputChange}
+                  min={startLocal || nowLocal}
                   className={`${styles.input} ${errors.end_date ? styles.inputError : ""}`}
                 />
-                {errors.end_date && (
-                  <span className={styles.errorText}>{errors.end_date}</span>
-                )}
+                {errors.end_date && <span className={styles.errorText}>{errors.end_date}</span>}
               </div>
             </div>
 
