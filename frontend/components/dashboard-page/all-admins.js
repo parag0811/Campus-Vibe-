@@ -1,11 +1,15 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import styles from './all-admins.module.css';
-import { getOrg } from "@/lib/api.js";
+import { useToast } from '@/components/common/toast';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
 const AdminManagement = () => {
+  const router = useRouter();
+  const { toast } = useToast();
+
   const [searchEmail, setSearchEmail] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [currentAdmins, setCurrentAdmins] = useState([]);
@@ -15,74 +19,81 @@ const AdminManagement = () => {
   const [isLoadingAdmins, setIsLoadingAdmins] = useState(true);
   const [searchPerformed, setSearchPerformed] = useState(false);
   const [orgId, setOrgId] = useState(null);
-  const [error, setError] = useState('');
-  const [successMessage, setSuccessMessage] = useState('');
+  const [confirmRemove, setConfirmRemove] = useState(null);
+  const confirmTimerRef = useRef(null);
 
-  // Clear messages after 5 seconds
   useEffect(() => {
-    if (error || successMessage) {
-      const timer = setTimeout(() => {
-        setError('');
-        setSuccessMessage('');
-      }, 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [error, successMessage]);
+    const ac = new AbortController();
 
-  // Fetch organisation and current admins
-  useEffect(() => { 
     const fetchOrgAndAdmins = async () => {
       setIsLoadingAdmins(true);
-      setError('');
-      
       try {
-        const orgData = await getOrg();
-        if (!orgData.hasOrganisation) {
-          setError('No organisation found. Please create an organisation first.');
-          setIsLoadingAdmins(false);
+        const orgRes = await fetch(`${API_BASE}/org/organisationAdmin/my-organisation`, {
+          credentials: 'include',
+          signal: ac.signal,
+          headers: { 'Cache-Control': 'no-cache' },
+        });
+
+        if (orgRes.status === 401) {
+          toast.info('Please login to manage admins.');
+          router.replace('/login');
           return;
         }
-        
-        setOrgId(orgData.organisationId);
 
-        // Fetch current admins from backend
-        const res = await fetch(
-          `${API_BASE}/organisation/${orgData.organisationId}/all-admins`,
-          { 
-            credentials: "include",
-            headers: {
-              'Content-Type': 'application/json',
-            }
-          }
-        );
-        
+        const orgData = await orgRes.json();
+        if (!orgRes.ok || !orgData?.hasOrganisation || !(orgData.organisationId || orgData.organisation?._id)) {
+          toast.info('Create an organisation first.');
+          router.push('/create-organisation');
+          return;
+        }
+
+        const oid = String(orgData.organisationId || orgData.organisation?._id);
+        setOrgId(oid);
+
+        const res = await fetch(`${API_BASE}/org/organisation/${oid}/all-admins`, {
+          credentials: 'include',
+          signal: ac.signal,
+          headers: { 'Cache-Control': 'no-cache' },
+        });
+
+        if (res.status === 401) {
+          toast.info('Please login to manage admins.');
+          router.replace('/login');
+          return;
+        }
+
+        if (res.status === 404) {
+          setCurrentAdmins([]);
+          return;
+        }
+
         const data = await res.json();
-        
-        if (res.ok && data.admins) {
-          // Transform backend data to match frontend expectations
-          const transformedAdmins = data.admins.map(admin => ({
+        if (res.ok && Array.isArray(data.admins)) {
+          const transformed = data.admins.map((admin) => ({
             id: admin.user,
-            name: admin.userName || "Unknown User",
-            email: admin.userEmail || "",
+            name: admin.userName || 'Unknown User',
+            email: admin.userEmail || '',
             assignedDate: admin.createdAt || new Date().toISOString(),
-            role: "Admin",
-            profilePicture: admin.profilePicture || null
+            role: 'Admin',
+            profileImage: admin.profileImage || null,
           }));
-          setCurrentAdmins(transformedAdmins);
+          setCurrentAdmins(transformed);
         } else {
           setCurrentAdmins([]);
         }
       } catch (err) {
-        console.error('Error fetching organisation and admins:', err);
-        setError('Failed to load organisation data');
-        setCurrentAdmins([]);
+        if (err?.name !== 'AbortError') {
+          toast.error('Failed to load admins');
+          setCurrentAdmins([]);
+        }
       } finally {
-        setIsLoadingAdmins(false);
+        if (!ac.signal.aborted) setIsLoadingAdmins(false);
       }
     };
-    
+
     fetchOrgAndAdmins();
-  }, []);
+    return () => ac.abort();
+  }, [router, toast]);
 
   const handleSearch = async (e) => {
     e.preventDefault();
@@ -90,37 +101,35 @@ const AdminManagement = () => {
 
     setIsSearching(true);
     setSearchPerformed(true);
-    setError('');
 
     try {
-      // Search user by email
       const res = await fetch(
-        `${API_BASE}/organisation/searchUser?email=${encodeURIComponent(searchEmail.trim())}`,
-        { 
-          credentials: "include",
-          headers: {
-            'Content-Type': 'application/json',
-          }
-        }
+        `${API_BASE}/org/organisation/searchUser?email=${encodeURIComponent(searchEmail.trim())}`,
+        { credentials: 'include', headers: { 'Cache-Control': 'no-cache' } }
       );
-      
+
+      if (res.status === 401) {
+        toast.info('Please login to continue.');
+        router.replace('/login');
+        return;
+      }
+
       const data = await res.json();
-      
+
       if (res.ok && data.user) {
         const user = {
           id: data.user._id,
           name: data.user.name || 'Unknown User',
           email: data.user.email,
-          profilePicture: data.user.profilePicture || null,
-          isCurrentAdmin: currentAdmins.some(admin => admin.id === data.user._id)
+          profileImage: data.user.profileImage || null,
+          isCurrentAdmin: currentAdmins.some((a) => a.id === data.user._id),
         };
         setSearchResults([user]);
       } else {
         setSearchResults([]);
       }
-    } catch (error) {
-      console.error('Search error:', error);
-      setError('Failed to search user');
+    } catch {
+      toast.error('Failed to search user');
       setSearchResults([]);
     } finally {
       setIsSearching(false);
@@ -129,50 +138,47 @@ const AdminManagement = () => {
 
   const handleAssignAdmin = async (user) => {
     if (!orgId || !user.id) return;
-    
     setIsAssigning(true);
-    setError('');
-    
+
     try {
-      const res = await fetch(
-        `${API_BASE}/organisationAdmin/assign-organisation-admin`,
-        {
-          method: "POST",
-          credentials: "include",
-          headers: { 
-            "Content-Type": "application/json" 
-          },
-          body: JSON.stringify({ 
-            userId: user.id, 
-            organisationId: orgId 
-          })
-        }
-      );
-      
+      const res = await fetch(`${API_BASE}/org/organisationAdmin/assign-organisation-admin`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id, organisationId: orgId }),
+      });
+
       const data = await res.json();
-      
-      if (res.ok) {
-        // Add new admin to current admins list
-        const newAdmin = {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          assignedDate: new Date().toISOString(),
-          role: "Admin",
-          profilePicture: user.profilePicture
-        };
-        
-        setCurrentAdmins(prev => [...prev, newAdmin]);
-        setSearchResults([]);
-        setSearchEmail('');
-        setSearchPerformed(false);
-        setSuccessMessage(`Successfully assigned ${user.name} as admin`);
-      } else {
-        setError(data.message || 'Failed to assign admin');
+
+      if (res.status === 401) {
+        toast.info('Please login to continue.');
+        router.replace('/login');
+        return;
       }
-    } catch (error) {
-      console.error('Assign admin error:', error);
-      setError('Failed to assign admin');
+      if (res.status === 409) {
+        toast.info(data.message || 'User is already an admin.');
+        return;
+      }
+      if (!res.ok) {
+        toast.error(data.message || 'Failed to assign admin');
+        return;
+      }
+
+      const newAdmin = {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        assignedDate: new Date().toISOString(),
+        role: 'Admin',
+        profileImage: user.profileImage || null,
+      };
+      setCurrentAdmins((prev) => [...prev, newAdmin]);
+      setSearchResults([]);
+      setSearchEmail('');
+      setSearchPerformed(false);
+      toast.success(data.message || `Assigned ${user.name} as admin`);
+    } catch {
+      toast.error('Failed to assign admin');
     } finally {
       setIsAssigning(false);
     }
@@ -180,43 +186,44 @@ const AdminManagement = () => {
 
   const handleRemoveAdmin = async (adminId, adminName) => {
     if (!orgId || !adminId) return;
-    
-    if (!window.confirm(`Are you sure you want to remove ${adminName} as admin?`)) {
+
+    if (confirmRemove !== adminId) {
+      setConfirmRemove(adminId);
+      toast.info(`Click again to remove ${adminName}`);
+      if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current);
+      confirmTimerRef.current = setTimeout(() => setConfirmRemove(null), 5000);
       return;
     }
 
-    setIsRemoving(prev => ({ ...prev, [adminId]: true }));
-    setError('');
+    setIsRemoving((prev) => ({ ...prev, [adminId]: true }));
 
     try {
-      const res = await fetch(
-        `${API_BASE}/organisationAdmin/remove-organisation-admin`,
-        {
-          method: "POST",
-          credentials: "include",
-          headers: { 
-            "Content-Type": "application/json" 
-          },
-          body: JSON.stringify({ 
-            userId: adminId, 
-            organisationId: orgId 
-          })
-        }
-      );
-      
+      const res = await fetch(`${API_BASE}/org/organisationAdmin/remove-organisation-admin`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: adminId, organisationId: orgId }),
+      });
+
       const data = await res.json();
-      
-      if (res.ok) {
-        setCurrentAdmins(prev => prev.filter(admin => admin.id !== adminId));
-        setSuccessMessage(`Successfully removed ${adminName} as admin`);
-      } else {
-        setError(data.message || 'Failed to remove admin');
+
+      if (res.status === 401) {
+        toast.info('Please login to continue.');
+        router.replace('/login');
+        return;
       }
-    } catch (error) {
-      console.error('Remove admin error:', error);
-      setError('Failed to remove admin');
+      if (!res.ok) {
+        toast.error(data.message || 'Failed to remove admin');
+        return;
+      }
+
+      setCurrentAdmins((prev) => prev.filter((a) => a.id !== adminId));
+      toast.success(data.message || `Removed ${adminName} as admin`);
+    } catch {
+      toast.error('Failed to remove admin');
     } finally {
-      setIsRemoving(prev => ({ ...prev, [adminId]: false }));
+      setIsRemoving((prev) => ({ ...prev, [adminId]: false }));
+      setConfirmRemove(null);
     }
   };
 
@@ -225,7 +232,7 @@ const AdminManagement = () => {
       return new Date(dateString).toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'short',
-        day: 'numeric'
+        day: 'numeric',
       });
     } catch {
       return 'Unknown';
@@ -249,25 +256,7 @@ const AdminManagement = () => {
     <div className={styles.container}>
       <div className={styles.content}>
         <h1 className={styles.title}>Admin Management</h1>
-        
-        {/* Error/Success Messages */}
-        {error && (
-          <div className={styles.errorMessage}>
-            <span>⚠️</span>
-            <p>{error}</p>
-            <button onClick={() => setError('')} className={styles.closeButton}>×</button>
-          </div>
-        )}
-        
-        {successMessage && (
-          <div className={styles.successMessage}>
-            <span>✅</span>
-            <p>{successMessage}</p>
-            <button onClick={() => setSuccessMessage('')} className={styles.closeButton}>×</button>
-          </div>
-        )}
 
-        {/* Search Section */}
         <div className={styles.searchSection}>
           <h2 className={styles.sectionTitle}>Add New Admin</h2>
           <form onSubmit={handleSearch} className={styles.searchForm}>
@@ -281,8 +270,8 @@ const AdminManagement = () => {
                 required
                 disabled={isSearching}
               />
-              <button 
-                type="submit" 
+              <button
+                type="submit"
                 disabled={isSearching || !searchEmail.trim()}
                 className={styles.searchButton}
               >
@@ -301,7 +290,6 @@ const AdminManagement = () => {
             </div>
           </form>
 
-          {/* Search Results */}
           {searchPerformed && (
             <div className={styles.searchResults}>
               {isSearching ? (
@@ -311,12 +299,12 @@ const AdminManagement = () => {
                 </div>
               ) : searchResults.length > 0 ? (
                 <div className={styles.userCards}>
-                  {searchResults.map(user => (
+                  {searchResults.map((user) => (
                     <div key={user.id} className={styles.userCard}>
                       <div className={styles.userInfo}>
                         <div className={styles.userAvatar}>
-                          {user.profilePicture ? (
-                            <img src={user.profilePicture} alt={user.name} />
+                          {user.profileImage ? (
+                            <img src={user.profileImage} alt={user.name} />
                           ) : (
                             <span>{user.name.charAt(0).toUpperCase()}</span>
                           )}
@@ -351,7 +339,9 @@ const AdminManagement = () => {
               ) : (
                 <div className={styles.noResults}>
                   <span>❌</span>
-                  <p>No user found with email: <strong>{searchEmail}</strong></p>
+                  <p>
+                    No user found with email: <strong>{searchEmail}</strong>
+                  </p>
                   <small>Please check the email address and try again.</small>
                 </div>
               )}
@@ -359,12 +349,9 @@ const AdminManagement = () => {
           )}
         </div>
 
-        {/* Current Admins Section */}
         <div className={styles.adminsSection}>
-          <h2 className={styles.sectionTitle}>
-            Current Admins ({currentAdmins.length})
-          </h2>
-          
+          <h2 className={styles.sectionTitle}>Current Admins ({currentAdmins.length})</h2>
+
           {currentAdmins.length === 0 ? (
             <div className={styles.emptyState}>
               <span>👥</span>
@@ -373,12 +360,12 @@ const AdminManagement = () => {
             </div>
           ) : (
             <div className={styles.adminsList}>
-              {currentAdmins.map(admin => (
+              {currentAdmins.map((admin) => (
                 <div key={admin.id} className={styles.adminCard}>
                   <div className={styles.adminInfo}>
                     <div className={styles.adminAvatar}>
-                      {admin.profilePicture ? (
-                        <img src={admin.profilePicture} alt={admin.name} />
+                      {admin.profileImage ? (
+                        <img src={admin.profileImage} alt={admin.name} />
                       ) : (
                         <span>{admin.name.charAt(0).toUpperCase()}</span>
                       )}
@@ -388,9 +375,7 @@ const AdminManagement = () => {
                       <p className={styles.adminEmail}>{admin.email}</p>
                       <div className={styles.adminMeta}>
                         <span className={styles.role}>{admin.role}</span>
-                        <span className={styles.assignedDate}>
-                          Assigned: {formatDate(admin.assignedDate)}
-                        </span>
+                        <span className={styles.assignedDate}>Assigned: {formatDate(admin.assignedDate)}</span>
                       </div>
                     </div>
                   </div>
@@ -398,12 +383,17 @@ const AdminManagement = () => {
                     onClick={() => handleRemoveAdmin(admin.id, admin.name)}
                     disabled={isRemoving[admin.id]}
                     className={styles.removeButton}
-                    title="Remove Admin"
+                    title={confirmRemove === admin.id ? 'Click to confirm' : 'Remove Admin'}
                   >
                     {isRemoving[admin.id] ? (
                       <>
                         <span className={styles.spinner}></span>
                         <span>Removing...</span>
+                      </>
+                    ) : confirmRemove === admin.id ? (
+                      <>
+                        <span>⚠️</span>
+                        <span>Confirm</span>
                       </>
                     ) : (
                       <>

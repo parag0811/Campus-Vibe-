@@ -88,7 +88,6 @@ exports.createOrganisation = async (req, res, next) => {
     const imageFile = req.files?.image?.[0];
     const docFile = req.files?.document?.[0];
 
-    // Validate files
     if (!imageFile) {
       const error = new Error("Organisation image is required.");
       error.statusCode = 422;
@@ -105,29 +104,23 @@ exports.createOrganisation = async (req, res, next) => {
       error.statusCode = 422;
       throw error;
     }
-    const allowedDocTypes = [
-      "image/jpeg",
-      "image/png",
-      "image/webp",
-      "application/pdf",
-    ];
+    const allowedDocTypes = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
     if (!allowedDocTypes.includes(docFile.mimetype)) {
       const error = new Error("KYC document must be an image or PDF.");
       error.statusCode = 422;
       throw error;
     }
 
-  if (!kycFullName || !kycPhoneNumber) {
+    if (!kycFullName || !kycPhoneNumber) {
       const error = new Error("KYC full name and phone number are required.");
       error.statusCode = 422;
       throw error;
     }
 
     const randomName = (bytes = 32) => crypto.randomBytes(bytes).toString("hex");
-    const imageKey = `org/${userId}/${randomName()}`;     // logo key
-    const docKey = `org/${userId}/kyc/${randomName()}`;   // kyc doc key
+    const imageKey = `org/${userId}/${randomName()}`;
+    const docKey = `org/${userId}/kyc/${randomName()}`;
 
-    // Process and upload org image
     const imageBuffer = await sharp(imageFile.buffer)
       .resize({ height: 200, width: 200, fit: "contain" })
       .toBuffer();
@@ -151,7 +144,7 @@ exports.createOrganisation = async (req, res, next) => {
       description,
       contact_email,
       imageName: imageKey,
-      razorpayAccountId, // required, validated in route
+      razorpayAccountId,
       kyc: {
         fullName: kycFullName,
         phoneNumber: kycPhoneNumber,
@@ -162,14 +155,10 @@ exports.createOrganisation = async (req, res, next) => {
 
     await organisation.save();
 
-    // Promote user to organisationAdmin and link org to user model 
     const user = await User.findById(userId);
     if (user) {
       user.role = "organisationAdmin";
-      user.organisation_Admin = Array.isArray(user.organisation_Admin) ? user.organisation_Admin : [];
-      if (!user.organisation_Admin.find(id => String(id) === String(organisation._id))) {
-        user.organisation_Admin.push(organisation._id);
-      }
+      // Do NOT push organisation._id into user.organisation_Admin here
       await user.save({ validateBeforeSave: false });
     }
 
@@ -178,9 +167,7 @@ exports.createOrganisation = async (req, res, next) => {
       organisationId: organisation._id,
     });
   } catch (err) {
-    if (!err.statusCode) {
-      err.statusCode = 500;
-    }
+    if (!err.statusCode) err.statusCode = 500;
     next(err);
   }
 };
@@ -269,49 +256,16 @@ exports.updateOrganisationDetail = async (req, res, next) => {
       }));
 
       organisation.kyc.documentUrl = newDocKey;
-      // optional: reset verification on document change
       organisation.kyc.verified = false;
     }
 
-    // Do NOT allow editing Razorpay account id here
     if (typeof req.body.razorpayAccountId !== "undefined") {
-      // ignore silently or enforce rejection; here we ignore
       delete req.body.razorpayAccountId;
     }
 
     await organisation.save();
 
     return res.status(200).json({ message: "Organisation information updated successfully." });
-  } catch (err) {
-    if (!err.statusCode) {
-      err.statusCode = 500;
-    }
-    next(err);
-  }
-};
-
-exports.deleteOrganisation = async (req, res, next) => {
-  try {
-    const userId = req.userId;
-    const organisation = await Organisation.findOne({ createdBy: userId });
-    if (!organisation) {
-      const error = new Error("No organisation found for this user.");
-      error.statusCode = 404;
-      throw error;
-    }
-    if (!organisation.imageName) {
-      const error = new Error("Organisation image not found. Deletion aborted.");
-      error.statusCode = 400;
-      throw error;
-    }
-    await s3.send(new DeleteObjectCommand({ Bucket: process.env.BUCKET_NAME, Key: organisation.imageName }));
-    // delete KYC doc if present
-    if (organisation.kyc?.documentUrl) {
-      await s3.send(new DeleteObjectCommand({ Bucket: process.env.BUCKET_NAME, Key: organisation.kyc.documentUrl }));
-    }
-
-    await organisation.deleteOne();
-    return res.status(200).json({ message: "Organisation deleted successfully." });
   } catch (err) {
     if (!err.statusCode) {
       err.statusCode = 500;
@@ -368,7 +322,6 @@ exports.loadCreatedEvents = async (req, res, next) => {
   }
 };
 
-// Fix fields: profilePicture -> profileImage in searchUser + loadAdmins
 exports.searchUser = async (req, res, next) => {
   const { email } = req.query;
   if (!email) {
@@ -425,6 +378,14 @@ exports.assignAdmin = async (req, res, next) => {
 
     await newAdmin.save();
 
+    await User.updateOne(
+      { _id: userId },
+      {
+        $addToSet: { organisation_Admin: organisationId },
+        $set: { role: "organisationAdmin" },
+      }
+    );
+
     return res.status(200).json({ message: "Admin assigned successfully." });
   } catch (err) {
     if (!err.statusCode) {
@@ -458,7 +419,75 @@ exports.removeAdmin = async (req, res, next) => {
       error.statusCode = 404;
       throw error;
     }
+
+    await User.updateOne(
+      { _id: userId },
+      { $pull: { organisation_Admin: organisationId } }
+    );
+
+    const [userDoc, ownsAnyOrg] = await Promise.all([
+      User.findById(userId).select("organisation_Admin role").lean(),
+      Organisation.exists({ createdBy: userId }),
+    ]);
+
+    if (userDoc && !ownsAnyOrg && (!userDoc.organisation_Admin || userDoc.organisation_Admin.length === 0)) {
+      await User.updateOne({ _id: userId }, { $set: { role: "student" } });
+    }
+
     return res.status(200).json({ message: "Admin removed successfully." });
+  } catch (err) {
+    if (!err.statusCode) {
+      err.statusCode = 500;
+    }
+    next(err);
+  }
+};
+
+exports.deleteOrganisation = async (req, res, next) => {
+  try {
+    const userId = req.userId;
+    const organisation = await Organisation.findOne({ createdBy: userId });
+    if (!organisation) {
+      const error = new Error("No organisation found for this user.");
+      error.statusCode = 404;
+      throw error;
+    }
+    if (!organisation.imageName) {
+      const error = new Error("Organisation image not found. Deletion aborted.");
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const adminLinks = await OrganisationAdmin.find({ organisation: organisation._id }).lean();
+    const adminUserIds = adminLinks.map(a => String(a.user));
+
+    await s3.send(new DeleteObjectCommand({ Bucket: process.env.BUCKET_NAME, Key: organisation.imageName }));
+    if (organisation.kyc?.documentUrl) {
+      await s3.send(new DeleteObjectCommand({ Bucket: process.env.BUCKET_NAME, Key: organisation.kyc.documentUrl }));
+    }
+
+    await OrganisationAdmin.deleteMany({ organisation: organisation._id });
+
+    await User.updateMany(
+      { organisation_Admin: organisation._id },
+      { $pull: { organisation_Admin: organisation._id } }
+    );
+
+    await organisation.deleteOne();
+
+    const affectedUserIds = Array.from(new Set([...adminUserIds, String(userId)]));
+
+    for (const uid of affectedUserIds) {
+      const [ownsAnyOrg, u] = await Promise.all([
+        Organisation.exists({ createdBy: uid }),
+        User.findById(uid).select("organisation_Admin role").lean(),
+      ]);
+      if (u && !ownsAnyOrg && (!u.organisation_Admin || u.organisation_Admin.length === 0) && u.role !== "student") {
+        await User.updateOne({ _id: uid }, { $set: { role: "student" } });
+      }
+    }
+
+    return res.status(200).json({ message: "Organisation deleted successfully." });
   } catch (err) {
     if (!err.statusCode) {
       err.statusCode = 500;

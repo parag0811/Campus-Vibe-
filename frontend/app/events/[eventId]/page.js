@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useToast } from "@/components/common/toast";
+import { useAuth } from "@/components/common/authContext";
 import styles from "./EventDetail.module.css";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
@@ -11,9 +12,11 @@ const EventDetailPage = () => {
   const [organisation, setOrganisation] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isRegistering, setIsRegistering] = useState(false);
+  const [userRegistered, setUserRegistered] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
   const { eventId } = useParams();
+  const { user } = useAuth();
 
   useEffect(() => {
     const fetchEventDetails = async () => {
@@ -45,6 +48,10 @@ const EventDetailPage = () => {
 
         setEvent({ ...ev, posterUrl });
         setOrganisation(org ? { ...org, logoUrl: orgLogoUrl } : null);
+
+        if (ev.attendees && user?._id) {
+          setUserRegistered(ev.attendees.map(String).includes(String(user._id)));
+        }
       } catch (err) {
         toast.error(
           err.message || "Something went wrong while fetching event details"
@@ -54,7 +61,7 @@ const EventDetailPage = () => {
       }
     };
     fetchEventDetails();
-  }, [eventId, toast]);
+  }, [eventId, toast, user?._id]);
 
   const handleRegistration = async () => {
     if (!eventId) return;
@@ -76,6 +83,7 @@ const EventDetailPage = () => {
 
         if (!resp.ok) throw new Error(data.message || "Registration failed");
         toast.success(data.message || "Registration successful!");
+        setUserRegistered(true);
         return;
       }
 
@@ -125,6 +133,7 @@ const EventDetailPage = () => {
               throw new Error(verifyData.message || "Payment verification failed");
             }
             toast.success("Payment successful!");
+            setUserRegistered(true);
             router.push(
               `/payment/success?bookingId=${encodeURIComponent(
                 verifyData.bookingId
@@ -331,9 +340,15 @@ const EventDetailPage = () => {
               <button
                 className={styles.bookNowBtn}
                 onClick={handleRegistration}
-                disabled={!isRegistrationOpen() || isRegistering}
+                disabled={
+                  userRegistered ||
+                  !isRegistrationOpen() ||
+                  isRegistering
+                }
               >
-                {isRegistering
+                {userRegistered
+                  ? "Already Registered"
+                  : isRegistering
                   ? "Registering..."
                   : !isRegistrationOpen()
                   ? "Registration Closed"

@@ -176,6 +176,33 @@ const EventForm = () => {
       return;
     }
 
+    // Client-side datetime validation
+    const regDt = new Date(formData.registeration_deadline);
+    const startDt = new Date(formData.start_date);
+    const endDt = new Date(formData.end_date);
+    const now = new Date();
+
+    const localErrors = {};
+    if (!formData.registeration_deadline || isNaN(regDt)) localErrors.registeration_deadline = "Valid registration deadline required.";
+    if (!formData.start_date || isNaN(startDt)) localErrors.start_date = "Valid start date required.";
+    if (!formData.end_date || isNaN(endDt)) localErrors.end_date = "Valid end date required.";
+
+    if (!localErrors.registeration_deadline && regDt < now) {
+      localErrors.registeration_deadline = "Deadline cannot be in the past.";
+    }
+    if (!localErrors.registeration_deadline && !localErrors.start_date && regDt > startDt) {
+      localErrors.registeration_deadline = "Deadline must be ≤ start date.";
+    }
+    if (!localErrors.start_date && !localErrors.end_date && endDt < startDt) {
+      localErrors.end_date = "End date must be ≥ start date.";
+    }
+
+    if (Object.keys(localErrors).length) {
+      setErrors(localErrors);
+      setSubmitError("Fix the highlighted date/time fields.");
+      return;
+    }
+
     try {
       setLoading(true);
 
@@ -313,14 +340,11 @@ const EventForm = () => {
               <div className={styles.inputGroupHalf}>
                 <label className={styles.label}>Registration Deadline *</label>
                 <input
-                  type="date"
+                  type="datetime-local"
                   name="registeration_deadline"
                   value={formData.registeration_deadline}
                   onChange={handleInputChange}
-                  className={`${styles.input} ${
-                    errors.registeration_deadline ? styles.inputError : ""
-                  }`}
-                  // required
+                  className={`${styles.input} ${errors.registeration_deadline ? styles.inputError : ""}`}
                 />
                 {errors.registeration_deadline && (
                   <span className={styles.errorText}>
@@ -331,14 +355,11 @@ const EventForm = () => {
               <div className={styles.inputGroupHalf}>
                 <label className={styles.label}>Start Date *</label>
                 <input
-                  type="date"
+                  type="datetime-local"
                   name="start_date"
                   value={formData.start_date}
                   onChange={handleInputChange}
-                  className={`${styles.input} ${
-                    errors.start_date ? styles.inputError : ""
-                  }`}
-                  // required
+                  className={`${styles.input} ${errors.start_date ? styles.inputError : ""}`}
                 />
                 {errors.start_date && (
                   <span className={styles.errorText}>{errors.start_date}</span>
@@ -347,14 +368,11 @@ const EventForm = () => {
               <div className={styles.inputGroupHalf}>
                 <label className={styles.label}>End Date *</label>
                 <input
-                  type="date"
+                  type="datetime-local"
                   name="end_date"
                   value={formData.end_date}
                   onChange={handleInputChange}
-                  className={`${styles.input} ${
-                    errors.end_date ? styles.inputError : ""
-                  }`}
-                  // required
+                  className={`${styles.input} ${errors.end_date ? styles.inputError : ""}`}
                 />
                 {errors.end_date && (
                   <span className={styles.errorText}>{errors.end_date}</span>

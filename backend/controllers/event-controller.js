@@ -99,11 +99,15 @@ exports.eventRegistration = async (req, res, next) => {
   try {
     const eventId = req.params.eventId;
     const event = await Event.findById(eventId);
-
     if (!event) {
       const error = new Error("Event not available.");
       error.statusCode = 404;
       throw error;
+    }
+
+    const now = new Date();
+    if (new Date(event.registeration_deadline) < now) {
+      return res.status(409).json({ success: false, message: "Registration deadline has passed." });
     }
 
     if (event.start_date <= new Date()) {
@@ -173,9 +177,7 @@ exports.eventRegistration = async (req, res, next) => {
 
     return res.status(201).json({ message: "Registration Successfull!" });
   } catch (err) {
-    if (!err.statusCode) {
-      err.statusCode = 500;
-    }
+    if (!err.statusCode) err.statusCode = 500;
     next(err);
   }
 };

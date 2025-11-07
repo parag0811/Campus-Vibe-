@@ -114,14 +114,40 @@ exports.createEvent = async (req, res, next) => {
       organiser_contact,
     } = req.body;
 
+    const now = new Date();
+    const regDt = new Date(registeration_deadline);
+    const startDt = new Date(start_date);
+    const endDt = new Date(end_date);
+
+    if (isNaN(regDt) || isNaN(startDt) || isNaN(endDt)) {
+      const err = new Error("Invalid date/time format.");
+      err.statusCode = 422;
+      throw err;
+    }
+    if (regDt < now) {
+      const err = new Error("Registration deadline cannot be in the past.");
+      err.statusCode = 422;
+      throw err;
+    }
+    if (regDt > startDt) {
+      const err = new Error("Registration deadline must be before or equal to event start.");
+      err.statusCode = 422;
+      throw err;
+    }
+    if (endDt < startDt) {
+      const err = new Error("End date must be on or after start date.");
+      err.statusCode = 422;
+      throw err;
+    }
+
     const event = new Event({
       created_by_organisation: organisationId,
       created_by_admin: createdBy,
       title,
       description,
-      registeration_deadline,
-      start_date,
-      end_date,
+      registeration_deadline: regDt,
+      start_date: startDt,
+      end_date: endDt,
       venue,
       mode,
       price,
@@ -131,14 +157,9 @@ exports.createEvent = async (req, res, next) => {
     });
 
     await event.save();
-
-    return res
-      .status(201)
-      .json({ message: "Event created successfully. Thanks for registering!" });
+    return res.status(201).json({ message: "Event created successfully. Thanks for registering!" });
   } catch (err) {
-    if (!err.statusCode) {
-      err.statusCode = 500;
-    }
+    if (!err.statusCode) err.statusCode = 500;
     next(err);
   }
 };
@@ -193,12 +214,38 @@ exports.editCreatedEvent = async (req, res, next) => {
       organiser_contact,
     } = req.body;
 
+    const now = new Date();
+    // Only validate fields provided (allow partial updates)
+    const regDt = registeration_deadline ? new Date(registeration_deadline) : new Date(event.registeration_deadline);
+    const startDt = start_date ? new Date(start_date) : new Date(event.start_date);
+    const endDt = end_date ? new Date(end_date) : new Date(event.end_date);
+
+    if ([regDt, startDt, endDt].some(d => isNaN(d))) {
+      const err = new Error("Invalid date/time format.");
+      err.statusCode = 422;
+      throw err;
+    }
+    if (regDt < now) {
+      const err = new Error("Registration deadline cannot be in the past.");
+      err.statusCode = 422;
+      throw err;
+    }
+    if (regDt > startDt) {
+      const err = new Error("Registration deadline must be before or equal to event start.");
+      err.statusCode = 422;
+      throw err;
+    }
+    if (endDt < startDt) {
+      const err = new Error("End date must be on or after start date.");
+      err.statusCode = 422;
+      throw err;
+    }
+
     event.title = title || event.title;
     event.description = description || event.description;
-    event.registeration_deadline =
-      registeration_deadline || event.registeration_deadline;
-    event.start_date = start_date || event.start_date;
-    event.end_date = end_date || event.end_date;
+    event.registeration_deadline = regDt;
+    event.start_date = startDt;
+    event.end_date = endDt;
     event.venue = venue || event.venue;
     event.mode = mode || event.mode;
     event.price = price || event.price;

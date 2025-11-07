@@ -32,56 +32,91 @@ exports.createOrder = async (req, res, next) => {
 
     const event = await Event.findById(eventId).lean();
     if (!event) {
-      return res.status(404).json({
-        success: false,
-        message: "Event not found or does not exist.",
-      });
-    }
-    if (!event.price || Number(event.price) <= 0) {
-      return res.status(400).json({
-        success: false,
-        message: "This event is free or has no price set.",
-      });
+      return res
+        .status(404)
+        .json({ success: false, message: "Event not found or does not exist." });
     }
 
-    // Compute fees safely (org can be null)
-    const org = await Organisation.findById(
-      event.created_by_organisation
-    ).lean();
+    // Common temporal + capacity + duplicate checks for paid flow
+    const now = new Date();
+    if (new Date(event.registeration_deadline) < now) {
+      return res
+        .status(409)
+        .json({ success: false, message: "Registration deadline has passed." });
+    }
+    if (new Date(event.start_date) <= now) {
+      return res
+        .status(409)
+        .json({ success: false, message: "Event has started. Registration closed." });
+    }
+    if (
+      event.max_attendees &&
+      Array.isArray(event.attendees) &&
+      event.attendees.length >= event.max_attendees
+    ) {
+      return res
+        .status(409)
+        .json({ success: false, message: "Registrations are full for this event." });
+    }
+    if (
+      Array.isArray(event.attendees) &&
+      event.attendees.some((a) => String(a) === String(userId))
+    ) {
+      return res
+        .status(409)
+        .json({ success: false, message: "Already registered for this event." });
+    }
+
+    // Prevent duplicate paid registrations (check existing paid Payment)
+    const existingPaid = await Payment.findOne({
+      user: userId,
+      event: event._id,
+      status: "paid",
+    }).lean();
+    if (existingPaid) {
+      return res
+        .status(409)
+        .json({ success: false, message: "Already registered (payment completed)." });
+    }
+
+    if (!event.price || Number(event.price) <= 0) {
+      return res.status(400).json({ success: false, message: "This event is free or has no price set." });
+    }
+
+    const org = await Organisation.findById(event.created_by_organisation).lean();
     const feePercent =
       org?.payoutPreferences?.platformFeePercent ??
       Number(process.env.DEFAULT_PLATFORM_FEE_PERCENT || 5);
 
-    const amountPaise = Math.round(Number(event.price) * 100); // authoritative from DB
+    const amountPaise = Math.round(Number(event.price) * 100);
     const platformFee = Math.floor((amountPaise * feePercent) / 100);
     const orgShare = Math.max(0, amountPaise - platformFee);
 
-    // Optionally reuse existing 'created' order
-    let existing = await Payment.findOne({
+    // Reuse an unpaid 'created' order if exists (still not paid)
+    let existingCreated = await Payment.findOne({
       user: userId,
       event: event._id,
       status: "created",
     }).lean();
+
     let order;
     let bookingId;
 
-    if (existing) {
+    if (existingCreated) {
       order = {
-        id: existing.orderId,
-        amount: existing.amount,
-        currency: existing.currency || "INR",
+        id: existingCreated.orderId,
+        amount: existingCreated.amount,
+        currency: existingCreated.currency || "INR",
       };
-      bookingId = existing.receipt;
+      bookingId = existingCreated.receipt;
     } else {
       bookingId = "CV-" + crypto.randomBytes(8).toString("hex").toUpperCase();
-
       const options = {
         amount: amountPaise,
         currency: "INR",
         receipt: bookingId,
         notes: { eventId: String(event._id), userId: String(userId) },
       };
-
       order = await razorpay.orders.create(options);
 
       await Payment.create({
@@ -114,8 +149,7 @@ exports.createOrder = async (req, res, next) => {
     if (err?.statusCode === 401 || err?.error?.code === "BAD_REQUEST_ERROR") {
       return res.status(502).json({
         success: false,
-        message:
-          "Payment gateway auth failed. Check Razorpay keys on the server.",
+        message: "Payment gateway auth failed. Check Razorpay keys on the server.",
         details: err?.error?.description || "Authentication failed",
       });
     }
@@ -126,64 +160,56 @@ exports.createOrder = async (req, res, next) => {
 
 exports.verifyPayment = async (req, res, next) => {
   try {
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } =
-      req.body;
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
     const userId = req.userId;
 
     if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "Missing Razorpay verification fields",
-        });
+      return res.status(400).json({ success: false, message: "Missing Razorpay verification fields" });
     }
 
     const body = `${razorpay_order_id}|${razorpay_payment_id}`;
-    const expectedSignature = crypto
-      .createHmac("sha256", RZP_KEY_SECRET)
-      .update(body)
-      .digest("hex");
-
+    const expectedSignature = crypto.createHmac("sha256", RZP_KEY_SECRET).update(body).digest("hex");
     if (expectedSignature !== razorpay_signature) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Invalid payment signature" });
+      return res.status(400).json({ success: false, message: "Invalid payment signature" });
     }
 
     const rpPayment = await razorpay.payments.fetch(razorpay_payment_id);
     if (!rpPayment || rpPayment.order_id !== razorpay_order_id) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Payment mismatch" });
+      return res.status(400).json({ success: false, message: "Payment mismatch" });
     }
     if (rpPayment.status !== "captured") {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: `Payment not captured (${rpPayment.status})`,
-        });
+      return res.status(400).json({ success: false, message: `Payment not captured (${rpPayment.status})` });
     }
 
     const payment = await Payment.findOne({ orderId: razorpay_order_id });
     if (!payment) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Payment record not found" });
+      return res.status(404).json({ success: false, message: "Payment record not found" });
     }
     if (String(payment.user) !== String(userId)) {
-      return res
-        .status(403)
-        .json({
-          success: false,
-          message: "Payment does not belong to this user",
-        });
+      return res.status(403).json({ success: false, message: "Payment does not belong to this user" });
     }
+    const event = await Event.findById(payment.event);
+    if (!event) {
+      return res.status(404).json({ success: false, message: "Event not found" });
+    }
+
+    // Duplicate / capacity / deadline checks again (race safety)
+    const now = new Date();
+    if (new Date(event.registeration_deadline) < now || new Date(event.start_date) <= now) {
+      return res.status(409).json({ success: false, message: "Registration period closed." });
+    }
+    if (
+      event.max_attendees &&
+      Array.isArray(event.attendees) &&
+      event.attendees.length >= event.max_attendees
+    ) {
+      return res.status(409).json({ success: false, message: "Registrations are full." });
+    }
+    const alreadyAttendee = (event.attendees || []).some((a) => String(a) === String(userId));
+
     if (payment.status === "paid") {
-      const existingTicket = await Ticket.findOne({
-        bookingId: payment.receipt,
-      }).lean();
+      // If already marked paid earlier, just return
+      const existingTicket = await Ticket.findOne({ bookingId: payment.receipt }).lean();
       return res.status(200).json({
         success: true,
         bookingId: payment.receipt,
@@ -192,6 +218,24 @@ exports.verifyPayment = async (req, res, next) => {
       });
     }
 
+    if (alreadyAttendee) {
+      // Payment captured but attendee already recorded (edge)
+      payment.paymentId = razorpay_payment_id;
+      payment.status = "paid";
+      payment.method = rpPayment.method;
+      payment.email = rpPayment.email;
+      payment.contact = rpPayment.contact;
+      await payment.save();
+      const existingTicket = await Ticket.findOne({ bookingId: payment.receipt }).lean();
+      return res.status(200).json({
+        success: true,
+        bookingId: payment.receipt,
+        ticketId: existingTicket?._id,
+        eventId: String(payment.event),
+      });
+    }
+
+    // Normal success path
     payment.paymentId = razorpay_payment_id;
     payment.status = "paid";
     payment.method = rpPayment.method;
@@ -210,22 +254,11 @@ exports.verifyPayment = async (req, res, next) => {
       });
     }
 
-    const ev = await Event.findById(payment.event);
-    if (ev) {
-      const exists = (ev.attendees || []).some(
-        (a) => String(a) === String(userId)
-      );
-      if (!exists) {
-        ev.attendees = ev.attendees || [];
-        ev.attendees.push(userId);
-        await ev.save();
-      }
-    }
+    event.attendees = event.attendees || [];
+    event.attendees.push(userId);
+    await event.save();
 
-    await User.updateOne(
-      { _id: userId },
-      { $addToSet: { registered_Events: payment.event } }
-    );
+    await User.updateOne({ _id: userId }, { $addToSet: { registered_Events: event._id } });
     try {
       const u = await User.findById(userId).lean();
       const payload = {
