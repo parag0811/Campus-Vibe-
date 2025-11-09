@@ -172,12 +172,12 @@
 }
 
 .menuItemSecondary {
-  color: #6b7280;    
-  font-weight: 600;
+  color: #6b7280;
+  font-weight: 500; /* was 600 */
 }
 
 .menuItem.menuItemSecondary:hover {
-  background: #f3f4f6;  
+  background: #f3f4f6;
 }
 
 .menuItem {
@@ -190,7 +190,7 @@
   appearance: none;
   border-radius: 8px;
   cursor: pointer;
-  font-weight: 600;
+  font-weight: 500; /* was 600 - make not bold */
   color: #111827;
   transition: background 0.15s ease, transform 0.05s ease;
 }

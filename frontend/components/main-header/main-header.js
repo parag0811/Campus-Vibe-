@@ -13,16 +13,10 @@ export default function MainHeader() {
   const [isClient, setIsClient] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
+  useEffect(() => { setIsClient(true); }, []);
 
   const safeCheckAuth = useCallback(async () => {
-    try {
-      await checkAuth();
-    } catch (error) {
-      console.error("Auth check failed in header:", error);
-    }
+    try { await checkAuth(); } catch {}
   }, [checkAuth]);
 
   useEffect(() => {
@@ -41,8 +35,6 @@ export default function MainHeader() {
     try {
       const success = await logout();
       if (success) router.push("/login");
-    } catch (error) {
-      console.error("Logout error:", error);
     } finally {
       setLocalLoading(false);
       setMenuOpen(false);
@@ -61,17 +53,14 @@ export default function MainHeader() {
     if (!isAuthenticated) {
       return (
         <>
-          <Link href="/login" className={styles.loginButton}>
-            Login
-          </Link>
-          <Link href="/register" className={styles.signupButton}>
-            Signup
-          </Link>
+          <Link href="/login" className={styles.loginButton}>Login</Link>
+          <Link href="/register" className={styles.signupButton}>Signup</Link>
         </>
       );
     }
 
-    // Authenticated: show Explore + Hamburger only
+    const hasAdmin = (user?.organisation_Admin?.length || 0) > 0 || user?.role === "organisationAdmin";
+
     return (
       <div className={styles.authActions}>
         {pathname !== "/events" && (
@@ -96,47 +85,33 @@ export default function MainHeader() {
             <div className={styles.menuOverlay} onClick={() => setMenuOpen(false)} />
             <nav className={styles.menuPanel} role="menu" aria-label="User menu">
               <button
-                className={`${styles.menuItem} ${styles.menuItemSecondary}`}
-                onClick={() => router.push("/profile")}
+                className={styles.menuItem}
+                onClick={() => { setMenuOpen(false); router.push("/profile"); }}
               >
                 Profile
               </button>
 
               <button
-                className={`${styles.menuItem} ${styles.menuItemSecondary}`}
-                onClick={() => router.push("/my-events")}
+                className={styles.menuItem}
+                onClick={() => { setMenuOpen(false); router.push("/my-events"); }}
               >
                 My Registered Events
               </button>
 
-              <div className={styles.menuSection}>
-                <div className={styles.menuSectionTitle}>My Organisations</div>
-                <div className={styles.orgList}>
-                  {(user?.organisation_Admin && user.organisation_Admin.length > 0)
-                    ? user.organisation_Admin.map((org, i) => {
-                        const id = org?._id || org;
-                        const name = org?.name || `Organisation ${i + 1}`;
-                        return (
-                          <button
-                            key={id}
-                            className={styles.orgItem}
-                            role="menuitem"
-                            onClick={() => {
-                              setMenuOpen(false);
-                              router.push(`/admin/org/${id}`);
-                            }}
-                          >
-                            {name}
-                          </button>
-                        );
-                      })
-                    : (
-                      <div className={styles.orgEmpty}>No organisations yet</div>
-                    )}
-                </div>
-              </div>
+              {hasAdmin && (
+                <button
+                  className={styles.menuItem}
+                  onClick={() => { setMenuOpen(false); router.push("/admin"); }}
+                >
+                  Admin Dashboard
+                </button>
+              )}
 
-              <button className={`${styles.menuItem} ${styles.logout}`} role="menuitem" onClick={handleLogout}>
+              <button
+                className={`${styles.menuItem} ${styles.logout}`}
+                role="menuitem"
+                onClick={handleLogout}
+              >
                 Log Out
               </button>
             </nav>
