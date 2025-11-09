@@ -5,21 +5,18 @@ const PaymentSchema = new Schema(
   {
     provider: { type: String, enum: ["razorpay"], default: "razorpay" },
 
-   
-    orderId: { type: String, required: true, unique: true, index: true },   // razorpay_order_id
-    paymentId: { type: String, unique: true, sparse: true, index: true },   // razorpay_payment_id (after success)
-    receipt: { type: String, required: true, unique: true, index: true },   // bookingId used in UI/ticket
+    orderId: { type: String, required: true, unique: true, index: true },
+    paymentId: { type: String }, 
+    receipt: { type: String, required: true, unique: true, index: true },
 
-    
     user: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
     event: { type: Schema.Types.ObjectId, ref: "Event", required: true, index: true },
     organisation: { type: Schema.Types.ObjectId, ref: "Organisation", required: true, index: true },
 
-   
     amount: { type: Number, required: true, min: 0 },
     currency: { type: String, default: "INR", uppercase: true },
-    platformFee: { type: Number, default: 0, min: 0 }, // my cut damn
-    orgShare: { type: Number, default: 0, min: 0 },    // to be settled for later
+    platformFee: { type: Number, default: 0, min: 0 },
+    orgShare: { type: Number, default: 0, min: 0 },
 
     status: {
       type: String,
@@ -28,8 +25,7 @@ const PaymentSchema = new Schema(
       index: true,
     },
 
-    // Optional details captured from Razorpay
-    method: { type: String },  // card/netbanking/upi/etc
+    method: { type: String },
     email: { type: String },
     contact: { type: String },
     notes: { type: Object },
@@ -37,7 +33,15 @@ const PaymentSchema = new Schema(
   { timestamps: true, versionKey: false }
 );
 
-// Fast lookups
 PaymentSchema.index({ user: 1, event: 1, createdAt: -1 });
+
+PaymentSchema.index(
+  { paymentId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { paymentId: { $exists: true, $ne: null } },
+    name: "paymentId_not_null_unique",
+  }
+);
 
 module.exports = mongoose.model("Payment", PaymentSchema);

@@ -23,102 +23,60 @@ exports.createOrder = async (req, res, next) => {
   try {
     const { eventId } = req.body;
     const userId = req.userId;
-
-    if (!eventId) {
-      const error = new Error("EventId not found.");
-      error.statusCode = 400;
-      throw error;
-    }
+    if (!eventId) return res.status(400).json({ success: false, message: "EventId not found." });
 
     const event = await Event.findById(eventId).lean();
-    if (!event) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Event not found or does not exist." });
-    }
+    if (!event) return res.status(404).json({ success: false, message: "Event not found or does not exist." });
 
-    // Common temporal + capacity + duplicate checks for paid flow
     const now = new Date();
-    if (new Date(event.registeration_deadline) < now) {
-      return res
-        .status(409)
-        .json({ success: false, message: "Registration deadline has passed." });
-    }
-    if (new Date(event.start_date) <= now) {
-      return res
-        .status(409)
-        .json({ success: false, message: "Event has started. Registration closed." });
-    }
-    if (
-      event.max_attendees &&
-      Array.isArray(event.attendees) &&
-      event.attendees.length >= event.max_attendees
-    ) {
-      return res
-        .status(409)
-        .json({ success: false, message: "Registrations are full for this event." });
-    }
-    if (
-      Array.isArray(event.attendees) &&
-      event.attendees.some((a) => String(a) === String(userId))
-    ) {
-      return res
-        .status(409)
-        .json({ success: false, message: "Already registered for this event." });
-    }
+    if (new Date(event.registeration_deadline) < now)
+      return res.status(409).json({ success: false, message: "Registration deadline has passed." });
+    if (new Date(event.start_date) <= now)
+      return res.status(409).json({ success: false, message: "Event has started. Registration closed." });
+    if (event.max_attendees && Array.isArray(event.attendees) && event.attendees.length >= event.max_attendees)
+      return res.status(409).json({ success: false, message: "Registrations are full for this event." });
+    if (Array.isArray(event.attendees) && event.attendees.some((a) => String(a) === String(userId)))
+      return res.status(409).json({ success: false, message: "Already registered for this event." });
 
-    // Prevent duplicate paid registrations (check existing paid Payment)
-    const existingPaid = await Payment.findOne({
-      user: userId,
-      event: event._id,
-      status: "paid",
-    }).lean();
-    if (existingPaid) {
-      return res
-        .status(409)
-        .json({ success: false, message: "Already registered (payment completed)." });
-    }
+    const existingPaid = await Payment.findOne({ user: userId, event: event._id, status: "paid" }).lean();
+    if (existingPaid)
+      return res.status(409).json({ success: false, message: "Already registered (payment completed)." });
 
-    if (!event.price || Number(event.price) <= 0) {
+    if (!event.price || Number(event.price) <= 0)
       return res.status(400).json({ success: false, message: "This event is free or has no price set." });
-    }
 
     const org = await Organisation.findById(event.created_by_organisation).lean();
-    const feePercent =
-      org?.payoutPreferences?.platformFeePercent ??
-      Number(process.env.DEFAULT_PLATFORM_FEE_PERCENT || 5);
-
+    const feePercent = org?.payoutPreferences?.platformFeePercent ?? Number(process.env.DEFAULT_PLATFORM_FEE_PERCENT || 5);
     const amountPaise = Math.round(Number(event.price) * 100);
     const platformFee = Math.floor((amountPaise * feePercent) / 100);
     const orgShare = Math.max(0, amountPaise - platformFee);
 
-    // Reuse an unpaid 'created' order if exists (still not paid)
-    let existingCreated = await Payment.findOne({
+    const existingCreated = await Payment.findOne({
       user: userId,
       event: event._id,
       status: "created",
     }).lean();
-
-    let order;
-    let bookingId;
-
     if (existingCreated) {
-      order = {
-        id: existingCreated.orderId,
+      return res.status(200).json({
+        success: true,
+        keyId: RZP_KEY_ID,
+        orderId: existingCreated.orderId,
         amount: existingCreated.amount,
         currency: existingCreated.currency || "INR",
-      };
-      bookingId = existingCreated.receipt;
-    } else {
-      bookingId = "CV-" + crypto.randomBytes(8).toString("hex").toUpperCase();
-      const options = {
-        amount: amountPaise,
-        currency: "INR",
-        receipt: bookingId,
-        notes: { eventId: String(event._id), userId: String(userId) },
-      };
-      order = await razorpay.orders.create(options);
+        bookingId: existingCreated.receipt,
+        eventId: String(event._id),
+      });
+    }
 
+    const bookingId = "CV-" + crypto.randomBytes(8).toString("hex").toUpperCase();
+    const order = await razorpay.orders.create({
+      amount: amountPaise,
+      currency: "INR",
+      receipt: bookingId,
+      notes: { eventId: String(event._id), userId: String(userId) },
+    });
+
+    try {
       await Payment.create({
         provider: "razorpay",
         orderId: order.id,
@@ -134,6 +92,22 @@ exports.createOrder = async (req, res, next) => {
         status: "created",
         notes: order.notes,
       });
+    } catch (e) {
+      if (e.code === 11000 && e.keyPattern?.paymentId) {
+        const fallback = await Payment.findOne({ orderId: order.id }).lean();
+        if (fallback) {
+          return res.status(200).json({
+            success: true,
+            keyId: RZP_KEY_ID,
+            orderId: fallback.orderId,
+            amount: fallback.amount,
+            currency: fallback.currency || "INR",
+            bookingId: fallback.receipt,
+            eventId: String(event._id),
+          });
+        }
+      }
+      throw e;
     }
 
     return res.status(200).json({
@@ -149,8 +123,7 @@ exports.createOrder = async (req, res, next) => {
     if (err?.statusCode === 401 || err?.error?.code === "BAD_REQUEST_ERROR") {
       return res.status(502).json({
         success: false,
-        message: "Payment gateway auth failed. Check Razorpay keys on the server.",
-        details: err?.error?.description || "Authentication failed",
+        message: "Payment gateway auth failed. Check Razorpay keys.",
       });
     }
     if (!err.statusCode) err.statusCode = 500;
