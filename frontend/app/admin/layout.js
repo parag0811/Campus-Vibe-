@@ -1,7 +1,6 @@
 import Sidebar from "@/components/dashboard-page/sidebar";
 import styles from "./admin.module.css";
 
-//WE CAN ADD hasORG() mw inn backend to prottect routes.
 export default function AdminLayout({ children }) {
 
   return (
