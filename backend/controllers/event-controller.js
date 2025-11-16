@@ -511,3 +511,77 @@ exports.getTrendingEvents = async (req, res, next) => {
     next(err);
   }
 };
+
+exports.getEventAnalytics = async (req, res, next) => {
+  try {
+    const { orgId, eventId } = req.params;
+
+    const event = await Event.findById(eventId).select("created_by_organisation title").lean();
+    if (!event) {
+      return res.status(404).json({ message: "Event not found." });
+    }
+    if (String(event.created_by_organisation) !== String(orgId)) {
+      return res.status(403).json({ message: "Forbidden: organisation mismatch." });
+    }
+
+    const analytics = await EventAnalytics.findOne({ event: event._id }).lean();
+    if (!analytics) {
+      return res.status(200).json({
+        analytics: {
+          eventId,
+          title: event.title,
+          registerations: 0,
+          revenue: {
+            currency: "INR",
+            ticketsSold: 0,
+            grossAmountPaise: 0,
+            platformFeePaise: 0,
+            orgSharePaise: 0,
+            lastPaymentAt: null
+          },
+          payout: {
+            linkedRazorpayAccountId: null,
+            payoutMode: "auto",
+            paidOutPaise: 0,
+            pendingPayoutPaise: 0,
+            lastPayoutAt: null
+          },
+          registered_Users: []
+        }
+      });
+    }
+
+    const gross = analytics.revenue?.grossAmountPaise || 0;
+    const platformCut = analytics.revenue?.platformFeePaise || 0;
+    const orgShare = analytics.revenue?.orgSharePaise || 0;
+    const currency = analytics.revenue?.currency || "INR";
+    const pending = analytics.payout?.pendingPayoutPaise || orgShare - (analytics.payout?.paidOutPaise || 0);
+
+    return res.status(200).json({
+      analytics: {
+        eventId,
+        title: event.title,
+        registerations: analytics.registerations || 0,
+        registered_Users: analytics.registered_Users || [],
+        revenue: {
+          currency,
+          ticketsSold: analytics.revenue?.ticketsSold || 0,
+          grossAmountPaise: gross,
+          platformFeePaise: platformCut,
+          orgSharePaise: orgShare,
+          lastPaymentAt: analytics.revenue?.lastPaymentAt || null
+        },
+        payout: {
+          linkedRazorpayAccountId: analytics.payout?.linkedRazorpayAccountId || null,
+          payoutMode: analytics.payout?.payoutMode || "auto",
+          paidOutPaise: analytics.payout?.paidOutPaise || 0,
+          pendingPayoutPaise: pending,
+          lastPayoutAt: analytics.payout?.lastPayoutAt || null
+        }
+      }
+    });
+  } catch (err) {
+    if (!err.statusCode) err.statusCode = 500;
+    next(err);
+  }
+};

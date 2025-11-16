@@ -154,19 +154,80 @@ const EventAnalytics = () => {
   }
 
   const registrations = analytics?.registerations || 0;
+  const revenue = analytics?.revenue || {};
+  const payout = analytics?.payout || {};
+  const currency = revenue.currency || "INR";
+
+  const gross = revenue.grossAmountPaise || 0;
+  const platformFee = revenue.platformFeePaise || 0;
+  const orgShare = revenue.orgSharePaise || 0;
+  const pendingPayout = payout.pendingPayoutPaise ?? Math.max(0, orgShare - (payout.paidOutPaise || 0));
+
+  const formatMoney = (p) => (p / 100).toLocaleString("en-IN", {
+    style: "currency",
+    currency
+  });
+
   const users = Array.isArray(analytics?.registered_Users)
     ? analytics.registered_Users
     : [];
+
+  // CSV exporter (Excel-friendly)
+  const exportParticipantsCSV = () => {
+    if (!users.length) return;
+
+    const headers = ["Name", "Email", "Age", "College Name", "College ID"];
+    const sanitize = (v) => {
+      const s = (v ?? "").toString();
+      const escaped = s.replace(/"/g, '""');
+      return `"${escaped}"`;
+    };
+
+    const rows = users.map((u) => [
+      sanitize(u.name),
+      sanitize(u.email),
+      sanitize(u.age ?? ""),
+      sanitize(u.college_name),
+      sanitize(u.college_id),
+    ]);
+
+    const lines = [headers.map(sanitize).join(","), ...rows.map(r => r.join(","))];
+    const csv = "\ufeff" + lines.join("\r\n"); // BOM for Excel
+
+    const title = analytics?.title || eventId || "event";
+    const fnameSafe = title.replace(/[^\w\-]+/g, "_").slice(0, 50);
+    const fileName = `${fnameSafe}_participants_${new Date().toISOString().slice(0,10)}.csv`;
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const metrics = [
+    { label: "Registrations", value: registrations, bg: "#E6FDF7" },
+    { label: "Total Raised", value: formatMoney(gross), bg: "#FFECEC" },
+    { label: "Platform Cut", value: formatMoney(platformFee), bg: "#F8F1ED" },
+    { label: "Org Share", value: formatMoney(orgShare), bg: "#F2EEFE" },
+    { label: "Pending Payout", value: formatMoney(pendingPayout), bg: "#E9F6FF" },
+  ];
 
   return (
     <div className={styles.container}>
       <div className={styles.header}>
         <h1 className={styles.title}>Event Analytics</h1>
-        <div className={styles.statsCard}>
-          <div className={styles.statItem}>
-            <span className={styles.statNumber}>{registrations}</span>
-            <span className={styles.statLabel}>Total Registrations</span>
-          </div>
+        <div className={styles.badgeRow}>
+          {metrics.map(m => (
+            <div key={m.label} className={styles.metricBadge} style={{ background:m.bg }}>
+              <div className={styles.metricValue}>{m.value}</div>
+              <div className={styles.metricLabel}>{m.label}</div>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -174,12 +235,22 @@ const EventAnalytics = () => {
         <div className={styles.section}>
           <div className={styles.sectionHeader}>
             <h2 className={styles.sectionTitle}>Registered Participants</h2>
-            <button
-              onClick={fetchEventAnalytics}
-              className={styles.refreshButton}
-            >
-              Refresh Data
-            </button>
+            <div className={styles.actions}>
+              <button
+                onClick={exportParticipantsCSV}
+                className={styles.exportButton}
+                disabled={!users.length}
+                title={users.length ? "Download CSV" : "No participants to export"}
+              >
+                Export CSV
+              </button>
+              <button
+                onClick={fetchEventAnalytics}
+                className={styles.refreshButton}
+              >
+                Refresh Data
+              </button>
+            </div>
           </div>
 
           {users.length > 0 ? (

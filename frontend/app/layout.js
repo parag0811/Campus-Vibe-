@@ -11,22 +11,17 @@ const hideHeaderFooterRoutes = [
   "/register",
   "/forgot-password",
   "/reset-password",
-  '/admin',
-  '/admin/organisation',
-  '/admin/events',
-  '/admin/events/create-event',
-  '/admin/admins',
-  '/admin/profile',
-  '/verify-email'
+  "/verify-email"
 ];
 
 export default function RootLayout({ children }) {
   const pathname = usePathname();
 
-  // Hide header/footer for exact matches and for reset-password/[token]
   const hideHeaderFooter =
     hideHeaderFooterRoutes.includes(pathname) ||
-    pathname.startsWith("/reset-password/");
+    pathname.startsWith("/reset-password/") ||    
+    pathname.startsWith("/admin") ||              
+    pathname.startsWith("/org-admin");            
 
   return (
     <html lang="en">
