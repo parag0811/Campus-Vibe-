@@ -8,6 +8,7 @@ const isOrgOwnerOrAdmin = require("../middleware/is-organisation-admin-owner.js"
 const isOnlyOnwer  = require("../middleware/organisation-owner.js");
 const organisation_controller = require("../controllers/organisation-controller.js");
 const upload = require("../middleware/upload.js");
+const earningsController = require("../controllers/earnings-controller.js");
 
 // Validators
 const organisationValidate = [
@@ -119,6 +120,13 @@ router.get(
   isAuth,
   isOrgOwnerOrAdmin,
   organisation_controller.loadAdmins
+);
+
+router.get(
+  "/organisationAdmin/earnings",
+  isAuth,
+  isOnlyOnwer,
+  earningsController.getOrganisationEarnings
 );
 
 module.exports = router;

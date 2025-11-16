@@ -34,7 +34,6 @@ const PaymentSchema = new Schema(
 );
 
 PaymentSchema.index({ user: 1, event: 1, createdAt: -1 });
-
 PaymentSchema.index(
   { paymentId: 1 },
   {
@@ -43,5 +42,8 @@ PaymentSchema.index(
     name: "paymentId_not_null_unique",
   }
 );
+
+PaymentSchema.index({ organisation: 1, status: 1, createdAt: -1 });
+PaymentSchema.index({ event: 1, status: 1, createdAt: -1 });
 
 module.exports = mongoose.model("Payment", PaymentSchema);
