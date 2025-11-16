@@ -18,31 +18,33 @@ const organisationSchema = new Schema(
     },
     imageName: { type: String, required: true, unique: true },
 
-    // Razorpay payouts (required at creation; view-only for org owners)
-    razorpayAccountId: {
-      type: String,
-      required: true,
-      trim: true,
-      match: [/^acc_[A-Za-z0-9]+$/, "Invalid Razorpay Account ID"],
-      unique: true,
-      index: true,
+    // Bank details (primary payout)
+    bank: {
+      accountName: { type: String, required: true, trim: true },
+      accountNumber: { type: String, required: true, trim: true },
+      ifsc: {
+        type: String,
+        required: true,
+        trim: true,
+        uppercase: true,
+        match: [/^[A-Z]{4}0[A-Z0-9]{6}$/, "Invalid IFSC code"],
+      },
+      address: { type: String, required: true, trim: true },
     },
-    razorpayPayoutEnabled: { type: Boolean, default: false },
+    // razorpayPayoutEnabled: { type: Boolean, default: false },
     payoutPreferences: {
       platformFeePercent: { type: Number, default: 5, min: 0, max: 25 },
       minPayoutAmount: { type: Number, default: 0, min: 0 },
       settlementMode: { type: String, enum: ["auto"], default: "auto" },
     },
 
-    // Aggregates (in paise)
     pendingPayoutBalance: { type: Number, default: 0, min: 0 },
     totalEarnings: { type: Number, default: 0, min: 0 },
 
-    // Creator's KYC
     kyc: {
       fullName: { type: String, required: true },
       phoneNumber: { type: String, required: true },
-      documentUrl: { type: String, required: true }, // S3 key
+      documentUrl: { type: String, required: true },
       verified: { type: Boolean, default: false },
     },
   },

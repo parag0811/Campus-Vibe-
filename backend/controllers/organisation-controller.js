@@ -81,7 +81,17 @@ exports.createOrganisation = async (req, res, next) => {
       });
     }
 
-    const { name, contact_email, description = "", kyc = {}, razorpayAccountId } = req.body;
+    const {
+      name,
+      contact_email,
+      description = "",
+      kyc = {},
+      bankAccountName,
+      bankAccountNumber,
+      bankIfsc,
+      bankAddress,
+    } = req.body;
+
     const kycFullName = kyc.fullName || req.body["kyc.fullName"];
     const kycPhoneNumber = kyc.phoneNumber || req.body["kyc.phoneNumber"];
 
@@ -117,6 +127,29 @@ exports.createOrganisation = async (req, res, next) => {
       throw error;
     }
 
+    // Bank validations
+    const accName = (bankAccountName || "").trim();
+    const accNum = (bankAccountNumber || "").trim();
+    const ifsc = (bankIfsc || "").trim().toUpperCase();
+    const addr = (bankAddress || "").trim();
+
+    if (!accName) {
+      const e = new Error("Bank account name is required.");
+      e.statusCode = 422; throw e;
+    }
+    if (!/^[0-9]{9,18}$/.test(accNum)) {
+      const e = new Error("Invalid bank account number.");
+      e.statusCode = 422; throw e;
+    }
+    if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc)) {
+      const e = new Error("Invalid IFSC code.");
+      e.statusCode = 422; throw e;
+    }
+    if (addr.length < 5) {
+      const e = new Error("Bank address is too short.");
+      e.statusCode = 422; throw e;
+    }
+
     const randomName = (bytes = 32) => crypto.randomBytes(bytes).toString("hex");
     const imageKey = `org/${userId}/${randomName()}`;
     const docKey = `org/${userId}/kyc/${randomName()}`;
@@ -144,7 +177,12 @@ exports.createOrganisation = async (req, res, next) => {
       description,
       contact_email,
       imageName: imageKey,
-      razorpayAccountId,
+      bank: {
+        accountName: accName,
+        accountNumber: accNum,
+        ifsc,
+        address: addr,
+      },
       kyc: {
         fullName: kycFullName,
         phoneNumber: kycPhoneNumber,
@@ -158,7 +196,6 @@ exports.createOrganisation = async (req, res, next) => {
     const user = await User.findById(userId);
     if (user) {
       user.role = "organisationAdmin";
-      // Do NOT push organisation._id into user.organisation_Admin here
       await user.save({ validateBeforeSave: false });
     }
 
@@ -199,54 +236,66 @@ exports.updateOrganisationDetail = async (req, res, next) => {
     if (kycFullName) organisation.kyc.fullName = kycFullName;
     if (kycPhoneNumber) organisation.kyc.phoneNumber = kycPhoneNumber;
 
+    // Bank updates (optional fields)
+    const updates = {
+      accountName: (req.body.bankAccountName || "").trim(),
+      accountNumber: (req.body.bankAccountNumber || "").trim(),
+      ifsc: (req.body.bankIfsc || "").trim().toUpperCase(),
+      address: (req.body.bankAddress || "").trim(),
+    };
+
+    if (updates.accountName) organisation.bank.accountName = updates.accountName;
+    if (updates.accountNumber) {
+      if (!/^[0-9]{9,18}$/.test(updates.accountNumber)) {
+        const e = new Error("Invalid bank account number.");
+        e.statusCode = 422; throw e;
+      }
+      organisation.bank.accountNumber = updates.accountNumber;
+    }
+    if (updates.ifsc) {
+      if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(updates.ifsc)) {
+        const e = new Error("Invalid IFSC code.");
+        e.statusCode = 422; throw e;
+      }
+      organisation.bank.ifsc = updates.ifsc;
+    }
+    if (updates.address) organisation.bank.address = updates.address;
+
     const imageFile = req.files?.image?.[0];
     const docFile = req.files?.document?.[0];
 
-    // Replace org image if provided
     if (imageFile) {
       if (!["image/jpeg", "image/png", "image/webp"].includes(imageFile.mimetype)) {
         const error = new Error("Only .jpg, .png, or .webp images are allowed for logo.");
         error.statusCode = 422;
         throw error;
       }
-
       if (organisation.imageName) {
         await s3.send(new DeleteObjectCommand({ Bucket: process.env.BUCKET_NAME, Key: organisation.imageName }));
       }
-
       const newImageKey = `org/${userId}/${crypto.randomBytes(16).toString("hex")}`;
       const imageBuffer = await sharp(imageFile.buffer)
         .resize({ height: 200, width: 200, fit: "contain" })
         .toBuffer();
-
       await s3.send(new PutObjectCommand({
         Bucket: process.env.BUCKET_NAME,
         Key: newImageKey,
         Body: imageBuffer,
         ContentType: imageFile.mimetype,
       }));
-
       organisation.imageName = newImageKey;
     }
 
-    // Replace KYC doc if provided
     if (docFile) {
-      const allowedDocTypes = [
-        "image/jpeg",
-        "image/png",
-        "image/webp",
-        "application/pdf",
-      ];
+      const allowedDocTypes = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
       if (!allowedDocTypes.includes(docFile.mimetype)) {
         const error = new Error("KYC document must be an image or PDF.");
         error.statusCode = 422;
         throw error;
       }
-
       if (organisation.kyc?.documentUrl) {
         await s3.send(new DeleteObjectCommand({ Bucket: process.env.BUCKET_NAME, Key: organisation.kyc.documentUrl }));
       }
-
       const newDocKey = `org/${userId}/kyc/${crypto.randomBytes(16).toString("hex")}`;
       await s3.send(new PutObjectCommand({
         Bucket: process.env.BUCKET_NAME,
@@ -254,7 +303,6 @@ exports.updateOrganisationDetail = async (req, res, next) => {
         Body: docFile.buffer,
         ContentType: docFile.mimetype,
       }));
-
       organisation.kyc.documentUrl = newDocKey;
       organisation.kyc.verified = false;
     }

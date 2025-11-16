@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import styles from "./organisation.module.css";
 import { useToast } from "@/components/common/toast";
 
@@ -12,9 +12,17 @@ const OrganisationPage = () => {
     title: "",
     description: "",
     email: "",
+    bankAccountName: "",
+    bankAccountNumber: "",
+    bankIfsc: "",
+    bankAddress: "",
   });
   const [profileImage, setProfileImage] = useState(null);
+  const [kycDoc, setKycDoc] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
+
+  const imageInputRef = useRef(null);
+  const kycInputRef = useRef(null);
 
   const [hasOrganisation, setHasOrganisation] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -45,6 +53,10 @@ const OrganisationPage = () => {
             title: data.organisation.name || "",
             description: data.organisation.description || "",
             email: data.organisation.contact_email || "",
+            bankAccountName: data.organisation.bank?.accountName || "",
+            bankAccountNumber: data.organisation.bank?.accountNumber || "",
+            bankIfsc: data.organisation.bank?.ifsc || "",
+            bankAddress: data.organisation.bank?.address || "",
           });
           if (data.imageUrl) setImagePreview(data.imageUrl);
         } else {
@@ -58,7 +70,7 @@ const OrganisationPage = () => {
       }
     })();
     return () => { aborted = true; };
-  }, []); 
+  }, [toast]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -85,6 +97,18 @@ const OrganisationPage = () => {
     toast.success("Image selected");
   };
 
+  const handleKycChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const allowed = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+    if (!allowed.includes(file.type)) {
+      toast.error("KYC document must be an image or PDF");
+      return;
+    }
+    setKycDoc(file);
+    toast.success("KYC document selected");
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setValidationErrors({});
@@ -97,7 +121,12 @@ const OrganisationPage = () => {
     form.append("name", formData.title);
     form.append("description", formData.description);
     form.append("contact_email", formData.email);
+    if (formData.bankAccountName) form.append("bankAccountName", formData.bankAccountName);
+    if (formData.bankAccountNumber) form.append("bankAccountNumber", formData.bankAccountNumber);
+    if (formData.bankIfsc) form.append("bankIfsc", formData.bankIfsc.toUpperCase());
+    if (formData.bankAddress) form.append("bankAddress", formData.bankAddress);
     if (profileImage) form.append("image", profileImage);
+    if (kycDoc) form.append("document", kycDoc);
 
     try {
       setSaving(true);
@@ -149,7 +178,15 @@ const OrganisationPage = () => {
       if (res.ok) {
         toast.success(data.message || "Organisation deleted");
         setHasOrganisation(false);
-        setFormData({ title: "", description: "", email: "" });
+        setFormData({
+          title: "",
+          description: "",
+          email: "",
+          bankAccountName: "",
+          bankAccountNumber: "",
+          bankIfsc: "",
+          bankAddress: "",
+        });
         setImagePreview(null);
       } else {
         toast.error(data.message || "Failed to delete");
@@ -183,10 +220,7 @@ const OrganisationPage = () => {
             You haven’t created an organisation yet. Create one to start managing
             events and admins.
           </p>
-          <a
-            href="/create-organisation"
-            className={styles.emptyButton}
-          >
+          <a href="/create-organisation" className={styles.emptyButton}>
             Create Organisation
           </a>
         </div>
@@ -194,28 +228,35 @@ const OrganisationPage = () => {
         <div className={styles.formCard}>
           <div className={styles.formWrapper}>
             <form onSubmit={handleSubmit} className={styles.form}>
+              {/* Logo controls */}
+              <input
+                ref={imageInputRef}
+                type="file"
+                id="profileImage"
+                accept="image/*"
+                onChange={handleImageChange}
+                className={styles.imageInput}
+              />
+              <div className={styles.imageControls}>
+                <button
+                  type="button"
+                  className={`${styles.btnTiny} ${styles.btnTinyNeutral}`}
+                  onClick={() => imageInputRef.current?.click()}
+                >
+                  Change logo
+                </button>
+              </div>
               <div className={styles.imagePickerSection}>
                 <div className={styles.imagePickerWrapper}>
-                  <input
-                    type="file"
-                    id="profileImage"
-                    accept="image/*"
-                    onChange={handleImageChange}
-                    className={styles.imageInput}
-                  />
-                  <label htmlFor="profileImage" className={styles.imageLabel}>
+                  <div className={styles.imageLabel} aria-label="Organisation logo">
                     {imagePreview ? (
                       <img
                         src={imagePreview}
                         alt="Org logo"
                         className={styles.previewImage}
                       />
-                    ) : (
-                      <div className={styles.imagePlaceholder}>
-                        <span className={styles.uploadText}>Add Photo</span>
-                      </div>
-                    )}
-                  </label>
+                    ) : null}
+                  </div>
                 </div>
               </div>
 
@@ -274,18 +315,110 @@ const OrganisationPage = () => {
                 )}
               </div>
 
-              <button type="submit" className={styles.submitButton} disabled={saving}>
-                {saving ? "Saving..." : "Update Organisation"}
-              </button>
+              <h3 className={styles.sectionTitle}>Bank Details</h3>
+              <div className={styles.formGroup}>
+                <label htmlFor="bankAccountName" className={styles.label}>
+                  Account Name
+                </label>
+                <input
+                  type="text"
+                  id="bankAccountName"
+                  name="bankAccountName"
+                  value={formData.bankAccountName}
+                  onChange={handleInputChange}
+                  className={styles.input}
+                />
+                {validationErrors.bankAccountName && (
+                  <p className={styles.errorText}>{validationErrors.bankAccountName}</p>
+                )}
+              </div>
 
-              <button
-                type="button"
-                className={styles.deleteButton}
-                onClick={handleDeleteOrganisation}
-                disabled={deleting}
-              >
-                {deleting ? "Deleting..." : "Delete Organisation"}
-              </button>
+              <div className={styles.formGroup}>
+                <label htmlFor="bankAccountNumber" className={styles.label}>
+                  Account Number
+                </label>
+                <input
+                  type="text"
+                  id="bankAccountNumber"
+                  name="bankAccountNumber"
+                  value={formData.bankAccountNumber}
+                  onChange={handleInputChange}
+                  className={styles.input}
+                />
+                {validationErrors.bankAccountNumber && (
+                  <p className={styles.errorText}>{validationErrors.bankAccountNumber}</p>
+                )}
+              </div>
+
+              <div className={styles.formGroup}>
+                <label htmlFor="bankIfsc" className={styles.label}>
+                  IFSC
+                </label>
+                <input
+                  type="text"
+                  id="bankIfsc"
+                  name="bankIfsc"
+                  value={formData.bankIfsc}
+                  onChange={handleInputChange}
+                  className={styles.input}
+                />
+                {validationErrors.bankIfsc && (
+                  <p className={styles.errorText}>{validationErrors.bankIfsc}</p>
+                )}
+              </div>
+
+              <div className={styles.formGroup}>
+                <label htmlFor="bankAddress" className={styles.label}>
+                  Bank Address
+                </label>
+                <input
+                  type="text"
+                  id="bankAddress"
+                  name="bankAddress"
+                  value={formData.bankAddress}
+                  onChange={handleInputChange}
+                  className={styles.input}
+                />
+                {validationErrors.bankAddress && (
+                  <p className={styles.errorText}>{validationErrors.bankAddress}</p>
+                )}
+              </div>
+
+              <h3 className={styles.sectionTitle}>KYC Document (optional update)</h3>
+              <input
+                ref={kycInputRef}
+                type="file"
+                id="kycDoc"
+                accept="image/*,application/pdf"
+                onChange={handleKycChange}
+                className={styles.fileInputHidden}
+              />
+              <div className={styles.fileRow}>
+                <button
+                  type="button"
+                  className={`${styles.btnTiny} ${styles.btnTinyPrimary}`}
+                  onClick={() => kycInputRef.current?.click()}
+                >
+                  Upload KYC
+                </button>
+                <span className={styles.fileName}>
+                  {kycDoc?.name || "No file selected"}
+                </span>
+              </div>
+
+              <div className={styles.buttonRow}>
+                <button
+                  type="button"
+                  className={styles.deleteButton}
+                  onClick={handleDeleteOrganisation}
+                  disabled={deleting}
+                >
+                  {deleting ? "Deleting..." : "Delete"}
+                </button>
+                <button type="submit" className={styles.submitButton} disabled={saving}>
+                  {saving ? "Saving..." : "Save changes"}
+                </button>
+              </div>
             </form>
           </div>
         </div>

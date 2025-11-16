@@ -15,7 +15,10 @@ export default function CreateOrganisationOnboarding() {
     contact_email: "",
     "kyc.fullName": "",
     "kyc.phoneNumber": "",
-    razorpayAccountId: "",
+    bankAccountName: "",
+    bankAccountNumber: "",
+    bankIfsc: "",
+    bankAddress: "",
   });
   const [image, setImage] = useState(null);
   const [documentFile, setDocumentFile] = useState(null);
@@ -94,7 +97,10 @@ export default function CreateOrganisationOnboarding() {
     if (!form.contact_email || !/^\S+@\S+\.\S+$/.test(form.contact_email)) v.contact_email = "Enter a valid email.";
     if (!form["kyc.fullName"] || form["kyc.fullName"].trim().length < 2) v["kyc.fullName"] = "Full name is required.";
     if (!form["kyc.phoneNumber"] || !/^[0-9+\-\s]{6,15}$/.test(form["kyc.phoneNumber"])) v["kyc.phoneNumber"] = "Enter a valid phone number.";
-    if (!form.razorpayAccountId || !/^acc_[A-Za-z0-9]+$/.test(form.razorpayAccountId)) v.razorpayAccountId = "Enter a valid Razorpay Account ID (acc_...).";
+    if (!form.bankAccountName || form.bankAccountName.trim().length < 2) v.bankAccountName = "Bank account name is required.";
+    if (!form.bankAccountNumber || !/^[0-9]{9,18}$/.test(form.bankAccountNumber)) v.bankAccountNumber = "Enter a valid account number.";
+    if (!form.bankIfsc || !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(form.bankIfsc.trim().toUpperCase())) v.bankIfsc = "Invalid IFSC code.";
+    if (!form.bankAddress || form.bankAddress.trim().length < 5) v.bankAddress = "Enter a valid address.";
     if (!image) v.image = "Organisation logo is required.";
     if (!documentFile) v.document = "KYC document is required.";
     return v;
@@ -115,9 +121,12 @@ export default function CreateOrganisationOnboarding() {
     fd.append("name", form.name.trim());
     fd.append("description", form.description.trim());
     fd.append("contact_email", form.contact_email.trim().toLowerCase());
-    fd.append("razorpayAccountId", form.razorpayAccountId.trim());
     fd.append("kyc.fullName", form["kyc.fullName"].trim());
     fd.append("kyc.phoneNumber", form["kyc.phoneNumber"].trim());
+    fd.append("bankAccountName", form.bankAccountName.trim());
+    fd.append("bankAccountNumber", form.bankAccountNumber.trim());
+    fd.append("bankIfsc", form.bankIfsc.trim().toUpperCase());
+    fd.append("bankAddress", form.bankAddress.trim());
     fd.append("image", image);
     fd.append("document", documentFile);
 
@@ -168,7 +177,7 @@ export default function CreateOrganisationOnboarding() {
         <section className={styles.container}>
           <div className={styles.hero}>
             <h1 className={styles.title}>Organisation Onboarding</h1>
-            <p className={styles.subtitle}>Provide organisation and KYC details to continue.</p>
+            <p className={styles.subtitle}>Provide organisation, bank and KYC details to continue.</p>
           </div>
 
           {toast.show && (
@@ -258,17 +267,60 @@ export default function CreateOrganisationOnboarding() {
               </div>
             </div>
 
-            <div className={styles.formGroup}>
-              <label className={styles.label} htmlFor="razorpayAccountId">Razorpay Account ID</label>
-              <input
-                id="razorpayAccountId"
-                name="razorpayAccountId"
-                className={`${styles.input} ${errors.razorpayAccountId ? styles.inputError : ""}`}
-                value={form.razorpayAccountId}
-                onChange={onChange}
-                placeholder="acc_XXXXXXXXXXXX"
-              />
-              {errors.razorpayAccountId && <div className={styles.error}>{errors.razorpayAccountId}</div>}
+            <div className={styles.gridTwo}>
+              <div className={styles.formGroup}>
+                <label className={styles.label} htmlFor="bankAccountName">Bank Account Name</label>
+                <input
+                  id="bankAccountName"
+                  name="bankAccountName"
+                  className={`${styles.input} ${errors.bankAccountName ? styles.inputError : ""}`}
+                  value={form.bankAccountName}
+                  onChange={onChange}
+                  placeholder="Account holder name"
+                />
+                {errors.bankAccountName && <div className={styles.error}>{errors.bankAccountName}</div>}
+              </div>
+
+              <div className={styles.formGroup}>
+                <label className={styles.label} htmlFor="bankAccountNumber">Bank Account Number</label>
+                <input
+                  id="bankAccountNumber"
+                  name="bankAccountNumber"
+                  className={`${styles.input} ${errors.bankAccountNumber ? styles.inputError : ""}`}
+                  value={form.bankAccountNumber}
+                  onChange={onChange}
+                  placeholder="XXXXXXXXXXXX"
+                />
+                {errors.bankAccountNumber && <div className={styles.error}>{errors.bankAccountNumber}</div>}
+              </div>
+            </div>
+
+            <div className={styles.gridTwo}>
+              <div className={styles.formGroup}>
+                <label className={styles.label} htmlFor="bankIfsc">IFSC Code</label>
+                <input
+                  id="bankIfsc"
+                  name="bankIfsc"
+                  className={`${styles.input} ${errors.bankIfsc ? styles.inputError : ""}`}
+                  value={form.bankIfsc}
+                  onChange={onChange}
+                  placeholder="ABCD0XXXXXX"
+                />
+                {errors.bankIfsc && <div className={styles.error}>{errors.bankIfsc}</div>}
+              </div>
+
+              <div className={styles.formGroup}>
+                <label className={styles.label} htmlFor="bankAddress">Bank Address</label>
+                <input
+                  id="bankAddress"
+                  name="bankAddress"
+                  className={`${styles.input} ${errors.bankAddress ? styles.inputError : ""}`}
+                  value={form.bankAddress}
+                  onChange={onChange}
+                  placeholder="Branch address"
+                />
+                {errors.bankAddress && <div className={styles.error}>{errors.bankAddress}</div>}
+              </div>
             </div>
 
             <div className={styles.gridTwo}>
