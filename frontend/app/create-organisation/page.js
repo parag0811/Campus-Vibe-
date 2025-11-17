@@ -31,7 +31,7 @@ export default function CreateOrganisationOnboarding() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch(`${API_BASE}/organisationAdmin/my-organisation`, {
+        const res = await fetch(`${API_BASE}/org/organisationAdmin/my-organisation`, {
           method: "GET",
           credentials: "include",
         });

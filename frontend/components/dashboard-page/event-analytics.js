@@ -30,14 +30,12 @@ const EventAnalytics = () => {
         return;
       }
       try {
-        const res = await fetch(
-          `${API_BASE}/org/organisationAdmin/my-organisation`,
-          {
-            credentials: "include",
-            headers: { "Cache-Control": "no-cache" },
-            signal: ac.signal,
-          }
-        );
+        // Probe: owner or assigned admin
+        const res = await fetch(`${API_BASE}/org-admin/organisation/is-member`, {
+          credentials: "include",
+          headers: { "Cache-Control": "no-cache" },
+          signal: ac.signal,
+        });
 
         if (res.status === 401) {
           toast.info("Please login to view analytics.");
@@ -46,21 +44,14 @@ const EventAnalytics = () => {
         }
 
         const data = await res.json();
-        if (!res.ok) {
-          throw new Error(data?.message || "Failed to resolve organisation.");
-        }
-
-        const id = data?.organisationId || data?.organisation?._id;
-        if (!id) {
-          toast.info("Create an organisation to access analytics.");
+        if (!res.ok || !data?.orgAdmin || !data?.organisationId) {
+          toast.info("You need an organisation (owner or assigned admin).");
           router.push("/create-organisation");
           return;
         }
-        setOrgId(String(id));
+        setOrgId(String(data.organisationId));
       } catch (e) {
-        if (!ac.signal.aborted) {
-          setError(e.message || "Failed to resolve organisation.");
-        }
+        if (!ac.signal.aborted) setError(e.message || "Failed to resolve organisation.");
       } finally {
         if (!ac.signal.aborted) setLoading(false);
       }
@@ -72,21 +63,13 @@ const EventAnalytics = () => {
 
   const fetchEventAnalytics = useCallback(async () => {
     if (!eventId || !orgId) return;
-
     const ac = new AbortController();
     setLoading(true);
     setError(null);
-
     try {
       const res = await fetch(
-        `${API_BASE}/org-admin/organisation/${encodeURIComponent(
-          orgId
-        )}/event/${encodeURIComponent(eventId)}/eventAnalytics`,
-        {
-          credentials: "include",
-          signal: ac.signal,
-          headers: { "Cache-Control": "no-cache" },
-        }
+        `${API_BASE}/org/organisationAdmin/organisation/${encodeURIComponent(orgId)}/event/${encodeURIComponent(eventId)}/eventAnalytics`,
+        { credentials: "include", signal: ac.signal, headers: { "Cache-Control": "no-cache" } }
       );
 
       if (res.status === 401) {

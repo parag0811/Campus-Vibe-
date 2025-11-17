@@ -2,7 +2,6 @@
 import styles from "./events.module.css";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-// import Alert from "@/components/alert/alert.js"; // removed
 import { useToast } from "@/components/common/toast";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
@@ -24,36 +23,29 @@ const EventsDashboard = () => {
         setLoading(true);
         setError(null);
 
-        // 1) Fetch organisation info
-        const orgRes = await fetch(`${API_BASE}/org/organisationAdmin/my-organisation`, {
+        // 1) Check membership (owner OR assigned admin)
+        const probeRes = await fetch(`${API_BASE}/org-admin/organisation/is-member`, {
           credentials: "include",
           signal: ac.signal,
           headers: { "Cache-Control": "no-cache" },
         });
-
-        if (orgRes.status === 401) {
+        if (probeRes.status === 401) {
           toast.info("Please login to manage events.");
           router.replace("/login");
           return;
         }
-
-        const org = await orgRes.json();
-        if (!orgRes.ok) {
-          throw new Error(org?.message || "Failed to fetch organisation info.");
-        }
-
-        const organisationId = org?.organisationId || org?.organisation?._id;
-        if (!organisationId) {
-          toast.info("Create an organisation to add events.");
+        const probe = await probeRes.json();
+        if (!probeRes.ok || !probe?.orgAdmin || !probe?.organisationId) {
+          // not owner/assigned admin
           router.push("/create-organisation");
           return;
         }
+        const organisationId = String(probe.organisationId);
+        setOrgId(organisationId);
 
-        setOrgId(String(organisationId));
-
-        // 2) Fetch events for organisation
+        // 2) Fetch events for organisation (org-admin route)
         const eventsRes = await fetch(
-          `${API_BASE}/org/organisation/${organisationId}/createdEvents`,
+          `${API_BASE}/org-admin/organisation/${organisationId}/created-events`,
           { credentials: "include", signal: ac.signal, headers: { "Cache-Control": "no-cache" } }
         );
 
@@ -64,10 +56,7 @@ const EventsDashboard = () => {
         }
 
         // 404 is a valid "no events" state
-        if (eventsRes.status === 404) {
-          setEvents([]);
-          return;
-        }
+        if (eventsRes.status === 404) { setEvents([]); return; }
 
         if (!eventsRes.ok) {
           const data = await eventsRes.json().catch(() => ({}));
@@ -145,7 +134,7 @@ const EventsDashboard = () => {
         ) : error ? (
           <p className={styles.errorText}>{error}</p>
         ) : events.length === 0 ? (
-          <p>No events found for your organisation.</p>
+          <p className={styles.emptyText}>No events found for your organisation.</p>
         ) : (
           <div className={styles.eventsGrid}>
             {events.map((event) => (

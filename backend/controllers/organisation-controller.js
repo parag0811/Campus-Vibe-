@@ -477,7 +477,6 @@ exports.assignAdmin = async (req, res, next) => {
       _id: organisationId,
       createdBy: req.userId,
     });
-
     if (!organisation) {
       const error = new Error("Create an organisation first.");
       error.statusCode = 403;
@@ -495,26 +494,16 @@ exports.assignAdmin = async (req, res, next) => {
       });
     }
 
-    const newAdmin = new OrganisationAdmin({
-      user: userId,
-      organisation: organisationId,
-    });
-
-    await newAdmin.save();
+    await new OrganisationAdmin({ user: userId, organisation: organisationId }).save();
 
     await User.updateOne(
       { _id: userId },
-      {
-        $addToSet: { organisation_Admin: organisationId },
-        $set: { role: "organisationAdmin" },
-      }
+      { $addToSet: { organisation_Admin: organisationId } }
     );
 
     return res.status(200).json({ message: "Admin assigned successfully." });
   } catch (err) {
-    if (!err.statusCode) {
-      err.statusCode = 500;
-    }
+    if (!err.statusCode) err.statusCode = 500;
     next(err);
   }
 };
@@ -527,7 +516,6 @@ exports.removeAdmin = async (req, res, next) => {
       _id: organisationId,
       createdBy: req.userId,
     });
-
     if (!organisation) {
       const error = new Error("Create an organisation first.");
       error.statusCode = 403;
@@ -549,24 +537,9 @@ exports.removeAdmin = async (req, res, next) => {
       { $pull: { organisation_Admin: organisationId } }
     );
 
-    const [userDoc, ownsAnyOrg] = await Promise.all([
-      User.findById(userId).select("organisation_Admin role").lean(),
-      Organisation.exists({ createdBy: userId }),
-    ]);
-
-    if (
-      userDoc &&
-      !ownsAnyOrg &&
-      (!userDoc.organisation_Admin || userDoc.organisation_Admin.length === 0)
-    ) {
-      await User.updateOne({ _id: userId }, { $set: { role: "student" } });
-    }
-
     return res.status(200).json({ message: "Admin removed successfully." });
   } catch (err) {
-    if (!err.statusCode) {
-      err.statusCode = 500;
-    }
+    if (!err.statusCode) err.statusCode = 500;
     next(err);
   }
 };
@@ -580,36 +553,8 @@ exports.deleteOrganisation = async (req, res, next) => {
       error.statusCode = 404;
       throw error;
     }
-    if (!organisation.imageName) {
-      const error = new Error(
-        "Organisation image not found. Deletion aborted."
-      );
-      error.statusCode = 400;
-      throw error;
-    }
-
-    const adminLinks = await OrganisationAdmin.find({
-      organisation: organisation._id,
-    }).lean();
-    const adminUserIds = adminLinks.map((a) => String(a.user));
-
-    await s3.send(
-      new DeleteObjectCommand({
-        Bucket: process.env.BUCKET_NAME,
-        Key: organisation.imageName,
-      })
-    );
-    if (organisation.kyc?.documentUrl) {
-      await s3.send(
-        new DeleteObjectCommand({
-          Bucket: process.env.BUCKET_NAME,
-          Key: organisation.kyc.documentUrl,
-        })
-      );
-    }
 
     await OrganisationAdmin.deleteMany({ organisation: organisation._id });
-
     await User.updateMany(
       { organisation_Admin: organisation._id },
       { $pull: { organisation_Admin: organisation._id } }
@@ -617,32 +562,17 @@ exports.deleteOrganisation = async (req, res, next) => {
 
     await organisation.deleteOne();
 
-    const affectedUserIds = Array.from(
-      new Set([...adminUserIds, String(userId)])
-    );
-
-    for (const uid of affectedUserIds) {
-      const [ownsAnyOrg, u] = await Promise.all([
-        Organisation.exists({ createdBy: uid }),
-        User.findById(uid).select("organisation_Admin role").lean(),
-      ]);
-      if (
-        u &&
-        !ownsAnyOrg &&
-        (!u.organisation_Admin || u.organisation_Admin.length === 0) &&
-        u.role !== "student"
-      ) {
-        await User.updateOne({ _id: uid }, { $set: { role: "student" } });
-      }
+    const [ownerOwnsAny, ownerLinks] = await Promise.all([
+      Organisation.exists({ createdBy: userId }),
+      User.findById(userId).select("organisation_Admin role").lean(),
+    ]);
+    if (!ownerOwnsAny && (!ownerLinks?.organisation_Admin || ownerLinks.organisation_Admin.length === 0)) {
+      await User.updateOne({ _id: userId }, { $set: { role: "student" } });
     }
 
-    return res
-      .status(200)
-      .json({ message: "Organisation deleted successfully." });
+    return res.status(200).json({ message: "Organisation deleted successfully." });
   } catch (err) {
-    if (!err.statusCode) {
-      err.statusCode = 500;
-    }
+    if (!err.statusCode) err.statusCode = 500;
     next(err);
   }
 };

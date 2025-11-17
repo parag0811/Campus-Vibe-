@@ -206,6 +206,43 @@
 .miniLink:hover { text-decoration: underline; }
 .featureHint { margin-top: 1rem; color: #64748b; font-weight: 500; }
 
+.adminShell {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  min-height: 100vh;
+}
+.sidebar {
+  border-right: 1px solid #e5e7eb;
+  padding: 16px 12px;
+  background: #ffffff;
+}
+.brand {
+  font-weight: 800;
+  letter-spacing: .4px;
+  margin-bottom: 12px;
+}
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.navItem {
+  display: block;
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: #374151;
+  font-weight: 600;
+}
+.navItem:hover { background: #f3f4f6; }
+.active {
+  background: #eef2ff;
+  color: #3730a3;
+}
+.content {
+  padding: 20px;
+  background: #f8fafc;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
   .container {

@@ -261,4 +261,17 @@ router.get(
   organisation_admin_controller.getEventAnalytics
 );
 
+router.get(
+  "/organisation/is-member",
+  isAuth,
+  organisation_admin_controller.isMember
+);
+
+router.get(
+  "/organisation/:organisationId/created-events",
+  isAuth,
+  isOrgOwnerOrAdmin,
+  organisation_admin_controller.getCreatedEvents
+);
+
 module.exports = router;

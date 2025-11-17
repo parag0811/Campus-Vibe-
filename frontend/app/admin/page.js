@@ -2,10 +2,12 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import styles from "./admin.module.css";
 
 export default function Admin() {
   const [isMobile, setIsMobile] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth <= 450);
@@ -13,6 +15,11 @@ export default function Admin() {
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
+
+  useEffect(() => {
+    // Default landing for all admins = Events.
+    router.replace("/admin/events");
+  }, [router]);
 
   return (
     <div className={styles.container}>

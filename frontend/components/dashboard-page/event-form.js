@@ -6,7 +6,7 @@ import { useToast } from "@/components/common/toast";
 import { useRef } from "react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
-const ORG_BASE = `${API_BASE}/org/organisationAdmin`; 
+const ORG_BASE = `${API_BASE}/org/organisationAdmin`; // keep for other org APIs
 
 // Helper to format a date string to input[type=datetime-local] value (local timezone)
 const toLocalInputValue = (d) => {
@@ -52,7 +52,8 @@ const EventForm = () => {
     async function loadOrg() {
       try {
         setOrgLoading(true);
-        const res = await fetch(`${ORG_BASE}/my-organisation`, {
+        // Probe membership (owner or assigned admin)
+        const res = await fetch(`${API_BASE}/org-admin/organisation/is-member`, {
           credentials: "include",
           signal: ac.signal,
           headers: { "Cache-Control": "no-cache" },
@@ -65,23 +66,16 @@ const EventForm = () => {
         }
 
         const data = await res.json();
-        if (ac.signal.aborted) return;
-
-        if (res.ok && data?.hasOrganisation && (data.organisation || data.organisationId)) {
-          const oid = String(data.organisationId || data.organisation?._id || "");
-          if (!oid) {
-            toast.error("Organisation id missing");
-            return;
-          }
-            setOrgId(oid);
-            setAllowed(true);
+        if (res.ok && data?.orgAdmin && data?.organisationId) {
+          const oid = String(data.organisationId);
+          setOrgId(oid);
+          setAllowed(true);
         } else {
-          toast.info("Create an organisation to add events.");
           router.push("/create-organisation");
         }
       } catch (err) {
         if (err?.name === "AbortError") return;
-        setSubmitError("Could not load organisation. Retry or refresh.");
+        setSubmitError("Could not verify organisation access. Retry or refresh.");
       } finally {
         if (!ac.signal.aborted) setOrgLoading(false);
       }
@@ -133,7 +127,6 @@ const EventForm = () => {
         if (!ac.signal.aborted) setEventLoading(false);
       }
     }
-
     loadEvent();
     return () => ac.abort();
   }, [isEditMode, eventId, orgId, router, toast]);

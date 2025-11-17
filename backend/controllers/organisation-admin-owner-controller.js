@@ -5,16 +5,22 @@ const { validationResult } = require("express-validator");
 const s3 = require("../middleware/s3Client.js");
 const Event = require("../models/event.js");
 const EventAnalytics = require("../models/event-analytics.js");
-const Organisation = require("../models/organisation.js");
+const Organisation = require("../models/organisation");
+const OrganisationAdmin = require("../models/organisation-admin");
+const User = require("../models/user");
 
 const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
-const {GetObjectCommand, PutObjectCommand, DeleteObjectCommand } = require("@aws-sdk/client-s3");
+const {
+  GetObjectCommand,
+  PutObjectCommand,
+  DeleteObjectCommand,
+} = require("@aws-sdk/client-s3");
 const crypto = require("crypto");
 const sharp = require("sharp");
 
 exports.getSingleEvent = async (req, res, next) => {
   try {
-    const { organisationId, eventId } = req.params; 
+    const { organisationId, eventId } = req.params;
 
     const event = await Event.findById(eventId);
 
@@ -130,7 +136,9 @@ exports.createEvent = async (req, res, next) => {
       throw err;
     }
     if (regDt > startDt) {
-      const err = new Error("Registration deadline must be before or equal to event start.");
+      const err = new Error(
+        "Registration deadline must be before or equal to event start."
+      );
       err.statusCode = 422;
       throw err;
     }
@@ -157,7 +165,9 @@ exports.createEvent = async (req, res, next) => {
     });
 
     await event.save();
-    return res.status(201).json({ message: "Event created successfully. Thanks for registering!" });
+    return res
+      .status(201)
+      .json({ message: "Event created successfully. Thanks for registering!" });
   } catch (err) {
     if (!err.statusCode) err.statusCode = 500;
     next(err);
@@ -216,11 +226,15 @@ exports.editCreatedEvent = async (req, res, next) => {
 
     const now = new Date();
     // Only validate fields provided (allow partial updates)
-    const regDt = registeration_deadline ? new Date(registeration_deadline) : new Date(event.registeration_deadline);
-    const startDt = start_date ? new Date(start_date) : new Date(event.start_date);
+    const regDt = registeration_deadline
+      ? new Date(registeration_deadline)
+      : new Date(event.registeration_deadline);
+    const startDt = start_date
+      ? new Date(start_date)
+      : new Date(event.start_date);
     const endDt = end_date ? new Date(end_date) : new Date(event.end_date);
 
-    if ([regDt, startDt, endDt].some(d => isNaN(d))) {
+    if ([regDt, startDt, endDt].some((d) => isNaN(d))) {
       const err = new Error("Invalid date/time format.");
       err.statusCode = 422;
       throw err;
@@ -231,7 +245,9 @@ exports.editCreatedEvent = async (req, res, next) => {
       throw err;
     }
     if (regDt > startDt) {
-      const err = new Error("Registration deadline must be before or equal to event start.");
+      const err = new Error(
+        "Registration deadline must be before or equal to event start."
+      );
       err.statusCode = 422;
       throw err;
     }
@@ -364,7 +380,9 @@ exports.getEventAnalytics = async (req, res, next) => {
       throw error;
     }
     if (event.created_by_organisation.toString() !== organisationId) {
-      const error = new Error("This event does not belong to the given organisation.");
+      const error = new Error(
+        "This event does not belong to the given organisation."
+      );
       error.statusCode = 403;
       throw error;
     }
@@ -406,5 +424,105 @@ exports.getEventAnalytics = async (req, res, next) => {
   } catch (err) {
     if (!err.statusCode) err.statusCode = 500;
     next(err);
+  }
+};
+
+exports.getCreatedEvents = async (req, res, next) => {
+  try {
+    const { organisationId } = req.params;
+
+    // Fetch all events for this org
+    const events = await Event.find({ created_by_organisation: organisationId })
+      .select("_id title registeration_deadline posterImage")
+      .lean();
+
+    if (!events || events.length === 0) {
+      return res.status(404).json({ message: "No events found for this organisation.", events: [] });
+    }
+
+    // Attach signed poster URLs if present
+    const mapped = await Promise.all(
+      events.map(async (e) => {
+        let imageUrl = null;
+        if (e.posterImage) {
+          try {
+            const cmd = new GetObjectCommand({ Bucket: process.env.BUCKET_NAME, Key: e.posterImage });
+            imageUrl = await getSignedUrl(s3, cmd, { expiresIn: 300 });
+          } catch (_) {}
+        }
+        return {
+          _id: e._id,
+          title: e.title,
+          registeration_deadline: e.registeration_deadline,
+          imageUrl,
+        };
+      })
+    );
+
+    return res.status(200).json({ events: mapped });
+  } catch (err) {
+    if (!err.statusCode) err.statusCode = 500;
+    next(err);
+  }
+};
+
+// Lightweight probe: owner or assigned admin; never throws
+exports.isMember = async (req, res) => {
+  const userId = req.userId;
+  try {
+    // 1) Owner of any organisation
+    const owned = await Organisation.findOne({ createdBy: userId })
+      .select("_id")
+      .lean()
+      .catch(() => null);
+
+    if (owned?._id) {
+      return res.status(200).json({
+        orgAdmin: true,
+        organisationId: owned._id,
+        isOwner: true,
+      });
+    }
+
+    // 2) Assigned via OrganisationAdmin mapping
+    const link = await OrganisationAdmin.findOne({ user: userId })
+      .select("organisation")
+      .lean()
+      .catch(() => null);
+
+    if (link?.organisation) {
+      return res.status(200).json({
+        orgAdmin: true,
+        organisationId: link.organisation,
+        isOwner: false,
+      });
+    }
+
+    // 3) Fallback: user.organisation_Admin array (legacy)
+    const u = await User.findById(userId)
+      .select("organisation_Admin")
+      .lean()
+      .catch(() => null);
+
+    if (u?.organisation_Admin?.length) {
+      return res.status(200).json({
+        orgAdmin: true,
+        organisationId: u.organisation_Admin[0],
+        isOwner: false,
+      });
+    }
+
+    return res.status(200).json({
+      orgAdmin: false,
+      organisationId: null,
+      isOwner: false,
+    });
+  } catch {
+    // Never surface a 500; return negative
+    return res.status(200).json({
+      orgAdmin: false,
+      organisationId: null,
+      isOwner: false,
+    });
   }
 };
