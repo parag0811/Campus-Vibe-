@@ -68,7 +68,7 @@ const EventAnalytics = () => {
     setError(null);
     try {
       const res = await fetch(
-        `${API_BASE}/org/organisationAdmin/organisation/${encodeURIComponent(orgId)}/event/${encodeURIComponent(eventId)}/eventAnalytics`,
+        `${API_BASE}/org-admin/organisation/${encodeURIComponent(orgId)}/event/${encodeURIComponent(eventId)}/eventAnalytics`,
         { credentials: "include", signal: ac.signal, headers: { "Cache-Control": "no-cache" } }
       );
 
