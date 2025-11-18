@@ -7,8 +7,7 @@ const LoadingSpinner = ({ isLoading = true, message = "Loading..." }) => {
   const [particles, setParticles] = useState([]);
 
   useEffect(() => {
-    // Generate particles only once on client
-    const newParticles = [...Array(12)].map(() => ({
+    const newParticles = Array.from({ length: 12 }, () => ({
       left: `${Math.random() * 100}%`,
       top: `${Math.random() * 100}%`,
       delay: `${Math.random() * 5}s`,
@@ -18,38 +17,32 @@ const LoadingSpinner = ({ isLoading = true, message = "Loading..." }) => {
   }, []);
 
   useEffect(() => {
-    if (isLoading) {
-      const interval = setInterval(() => {
-        setDots((prev) => (prev === "..." ? "" : prev + "."));
-      }, 500);
-
-      return () => clearInterval(interval);
-    }
+    if (!isLoading) return;
+    const interval = setInterval(() => {
+      setDots((prev) => (prev === "..." ? "" : prev + "."));
+    }, 500);
+    return () => clearInterval(interval);
   }, [isLoading]);
 
   if (!isLoading) return null;
 
   return (
-    <div className={styles.spinnerContainer}>
+    <div className={styles.spinnerContainer} role="status" aria-live="polite">
       <div className={styles.spinnerContent}>
         <div className={styles.spinnerWrapper}>
-          <div className={styles.spinnerRing}></div>
-          <div className={styles.spinnerOuter}></div>
-          <div className={styles.spinnerInner}></div>
-          <div className={styles.spinnerCore}></div>
+          <div className={styles.spinnerRing} />
+          <div className={styles.spinnerOuter} />
+          <div className={styles.spinnerInner} />
+          <div className={styles.spinnerCore} />
         </div>
-
         <div className={styles.messageContainer}>
           {message}
           {dots}
         </div>
-
         <div className={styles.progressBar}>
-          <div className={styles.progressIndicator}></div>
+          <div className={styles.progressIndicator} />
         </div>
       </div>
-
-      {/* Reduced particles */}
       <div className={styles.particlesContainer}>
         {particles.map((p, i) => (
           <div

@@ -6,37 +6,34 @@ import MainHeader from "@/components/main-header/main-header";
 import MainFooter from "@/components/main-footer/main-footer";
 import "./globals.css";
 
-const hideHeaderFooterRoutes = [
+const hideHeaderFooterRoutes = new Set([
   "/login",
   "/register",
   "/forgot-password",
   "/reset-password",
-  "/verify-email"
-];
+  "/verify-email",
+]);
 
 export default function RootLayout({ children }) {
   const pathname = usePathname();
 
   const hideHeaderFooter =
-    hideHeaderFooterRoutes.includes(pathname) ||
-    pathname.startsWith("/reset-password/") ||    
-    pathname.startsWith("/admin") ||              
-    pathname.startsWith("/org-admin");            
+    hideHeaderFooterRoutes.has(pathname) ||
+    pathname.startsWith("/reset-password/") ||
+    pathname.startsWith("/admin") ||
+    pathname.startsWith("/org-admin");
 
   return (
-    <html lang="en">
+    <html lang="en" style={{ colorScheme: "light" }}>
+      <head>
+        <meta name="theme-color" content="#ffffff" />
+      </head>
       <body>
         <ToastProvider>
           <AuthProvider>
-            <div
-              style={{
-                minHeight: "100vh",
-                display: "flex",
-                flexDirection: "column",
-              }}
-            >
+            <div className="app-shell">
               {!hideHeaderFooter && <MainHeader />}
-              <main style={{ flex: 1 }}>{children}</main>
+              <main className="app-main">{children}</main>
               {!hideHeaderFooter && <MainFooter />}
             </div>
           </AuthProvider>

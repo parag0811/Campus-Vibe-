@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-const protectedRoutes = ["/admin", "/events", "/profile", "/my-events"];
+const protectedRoutes = ["/admin", "/events", "/profile", "/my-events", "/create-organisation"];
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
