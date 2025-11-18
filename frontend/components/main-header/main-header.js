@@ -101,7 +101,7 @@ export default function MainHeader() {
               {hasAdmin && (
                 <button
                   className={styles.menuItem}
-                  onClick={() => { setMenuOpen(false); router.push("/admin"); }}
+                  onClick={() => { setMenuOpen(false); router.push("/admin/events"); }}
                 >
                   Admin Dashboard
                 </button>

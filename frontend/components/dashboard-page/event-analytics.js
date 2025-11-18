@@ -6,6 +6,22 @@ import { useToast } from "@/components/common/toast";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
+function getCookie(name) {
+  if (typeof document === "undefined") return null;
+  const m = document.cookie.match(new RegExp("(^| )" + name + "=([^;]+)"));
+  return m ? decodeURIComponent(m[2]) : null;
+}
+function getJwtRole() {
+  try {
+    const token = getCookie("token");
+    if (!token) return null;
+    const payload = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    return JSON.parse(atob(payload)).role || null;
+  } catch {
+    return null;
+  }
+}
+
 const EventAnalytics = () => {
   const router = useRouter();
   const { toast } = useToast();
@@ -18,19 +34,17 @@ const EventAnalytics = () => {
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [isOwner, setIsOwner] = useState(false);
+  const [orgMember, setOrgMember] = useState(false);
+  const [role, setRole] = useState(null);
 
-  // Resolve organisationId if not in query
   useEffect(() => {
     const ac = new AbortController();
 
-    async function ensureOrgId() {
-      if (orgFromQS) {
-        setOrgId(orgFromQS);
-        setLoading(false);
-        return;
-      }
+    async function resolveOrgAndMembership() {
       try {
-        // Probe: owner or assigned admin
+        setLoading(true);
+        setRole(getJwtRole());
         const res = await fetch(`${API_BASE}/org-admin/organisation/is-member`, {
           credentials: "include",
           headers: { "Cache-Control": "no-cache" },
@@ -49,7 +63,12 @@ const EventAnalytics = () => {
           router.push("/create-organisation");
           return;
         }
-        setOrgId(String(data.organisationId));
+
+        setIsOwner(!!data.isOwner);
+        setOrgMember(!!data.orgAdmin);
+
+        const resolvedOrgId = orgFromQS || String(data.organisationId);
+        setOrgId(resolvedOrgId);
       } catch (e) {
         if (!ac.signal.aborted) setError(e.message || "Failed to resolve organisation.");
       } finally {
@@ -57,7 +76,7 @@ const EventAnalytics = () => {
       }
     }
 
-    ensureOrgId();
+    resolveOrgAndMembership();
     return () => ac.abort();
   }, [orgFromQS, router, toast]);
 
@@ -192,13 +211,18 @@ const EventAnalytics = () => {
     URL.revokeObjectURL(url);
   };
 
-  const metrics = [
-    { label: "Registrations", value: registrations, bg: "#E6FDF7" },
-    { label: "Total Raised", value: formatMoney(gross), bg: "#FFECEC" },
-    { label: "Platform Cut", value: formatMoney(platformFee), bg: "#F8F1ED" },
-    { label: "Org Share", value: formatMoney(orgShare), bg: "#F2EEFE" },
-    { label: "Pending Payout", value: formatMoney(pendingPayout), bg: "#E9F6FF" },
-  ];
+  const limitedAccess = orgMember && !isOwner && role !== "organisationAdmin";
+  const metrics = limitedAccess
+    ? [
+        { label: "Registrations", value: registrations, bg: "#E6FDF7" },
+      ]
+    : [
+        { label: "Registrations", value: registrations, bg: "#E6FDF7" },
+        { label: "Total Raised", value: formatMoney(gross), bg: "#FFECEC" },
+        { label: "Platform Cut", value: formatMoney(platformFee), bg: "#F8F1ED" },
+        { label: "Org Share", value: formatMoney(orgShare), bg: "#F2EEFE" },
+        { label: "Pending Payout", value: formatMoney(pendingPayout), bg: "#E9F6FF" },
+      ];
 
   return (
     <div className={styles.container}>
