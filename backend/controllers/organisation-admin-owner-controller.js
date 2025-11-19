@@ -92,7 +92,7 @@ exports.createEvent = async (req, res, next) => {
     const imageName = randomImageName();
 
     const buffer = await sharp(req.file.buffer)
-      .resize({ height: 800, width: 1200, fit: "contain" })
+      .resize({ width: 1000, height: 800, fit: "cover", position: "attention" }) // 5:4, no letterboxing
       .toBuffer();
 
     const params = {
@@ -294,7 +294,7 @@ exports.editCreatedEvent = async (req, res, next) => {
         crypto.randomBytes(bytes).toString("hex");
       const imageName = randomImageName();
       const buffer = await sharp(req.file.buffer)
-        .resize({ height: 800, width: 1200, fit: "contain" })
+        .resize({ width: 1000, height: 800, fit: "cover", position: "attention" }) // 5:4, no letterboxing
         .toBuffer();
 
       const uploadParams = {

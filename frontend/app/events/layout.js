@@ -1,9 +1,7 @@
 export default function EventRootLayout({ children }) {
   return (
-    <html lang="en">
-      <body>
-        <div>{children}</div>
-      </body>
-    </html>
+    <div style={{ minHeight: "100%", width: "100%" }}>
+      {children}
+    </div>
   );
 }

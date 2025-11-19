@@ -6,9 +6,8 @@ import { useToast } from "@/components/common/toast";
 import { useRef } from "react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
-const ORG_BASE = `${API_BASE}/org/organisationAdmin`; // keep for other org APIs
+const ORG_BASE = `${API_BASE}/org/organisationAdmin`; 
 
-// Helper to format a date string to input[type=datetime-local] value (local timezone)
 const toLocalInputValue = (d) => {
   if (!d) return "";
   const date = new Date(d);
@@ -165,8 +164,24 @@ const EventForm = () => {
       setErrors((prev) => ({ ...prev, posterImage: "Image size should be less than 5MB." }));
       return;
     }
+
+    // nudge users toward 5:4 (no hard block)
+    const img = new Image();
+    img.onload = () => {
+      const ratio = img.width / img.height; // 1.25 target
+      const off = Math.abs(ratio - 1.25);
+      if (off > 0.08) {
+        setErrors((prev) => ({
+          ...prev,
+          posterImage: "Tip: Use a 5:4 portrait image (e.g., 1250x1000) for best results. We’ll center-crop in preview."
+        }));
+      } else {
+        setErrors((prev) => ({ ...prev, posterImage: "" }));
+      }
+    };
+    img.src = URL.createObjectURL(file);
+
     setFormData((prev) => ({ ...prev, posterImage: file }));
-    setErrors((prev) => ({ ...prev, posterImage: "" }));
     const reader = new FileReader();
     reader.onloadend = () => setImagePreview(reader.result);
     reader.readAsDataURL(file);
@@ -325,229 +340,193 @@ const EventForm = () => {
 
         {!orgLoading && allowed && (!isEditMode || !eventLoading) && (
           <form onSubmit={handleSubmit} className={styles.form}>
-            {/* Event Title */}
-            <div className={styles.inputGroup}>
-              <label className={styles.label}>Event Title *</label>
-              <input
-                type="text"
-                name="title"
-                value={formData.title}
-                onChange={handleInputChange}
-                placeholder="Enter event title..."
-                className={`${styles.input} ${errors.title ? styles.inputError : ""}`}
-              />
-              {errors.title && <span className={styles.errorText}>{errors.title}</span>}
-            </div>
+             <div className={styles.inputGroup}>
+               <label className={styles.label}>Event Title *</label>
+               <input
+                 type="text"
+                 name="title"
+                 value={formData.title}
+                 onChange={handleInputChange}
+                 placeholder="Enter event title..."
+                 className={`${styles.input} ${errors.title ? styles.inputError : ""}`}
+               />
+               {errors.title && <span className={styles.errorText}>{errors.title}</span>}
+             </div>
 
-            {/* Date Row */}
-            <div className={styles.row}>
-              <div className={styles.inputGroupHalf}>
-                <label className={styles.label}>Registration Deadline *</label>
-                <input
-                  type="datetime-local"
-                  name="registeration_deadline"
-                  value={formData.registeration_deadline}
-                  onChange={handleInputChange}
-                  min={nowLocal}
-                  max={startLocal || undefined}
-                  className={`${styles.input} ${errors.registeration_deadline ? styles.inputError : ""}`}
-                />
-                {errors.registeration_deadline && (
-                  <span className={styles.errorText}>{errors.registeration_deadline}</span>
-                )}
-              </div>
-              <div className={styles.inputGroupHalf}>
-                <label className={styles.label}>Start Date *</label>
-                <input
-                  type="datetime-local"
-                  name="start_date"
-                  value={formData.start_date}
-                  onChange={handleInputChange}
-                  min={nowLocal}
-                  className={`${styles.input} ${errors.start_date ? styles.inputError : ""}`}
-                />
-                {errors.start_date && <span className={styles.errorText}>{errors.start_date}</span>}
-              </div>
-              <div className={styles.inputGroupHalf}>
-                <label className={styles.label}>End Date *</label>
-                <input
-                  type="datetime-local"
-                  name="end_date"
-                  value={formData.end_date}
-                  onChange={handleInputChange}
-                  min={startLocal || nowLocal}
-                  className={`${styles.input} ${errors.end_date ? styles.inputError : ""}`}
-                />
-                {errors.end_date && <span className={styles.errorText}>{errors.end_date}</span>}
-              </div>
-            </div>
+             {/* Date Row */}
+             <div className={styles.row}>
+               <div className={styles.inputGroupHalf}>
+                 <label className={styles.label}>Registration Deadline *</label>
+                 <input
+                   type="datetime-local"
+                   name="registeration_deadline"
+                   value={formData.registeration_deadline}
+                   onChange={handleInputChange}
+                   min={nowLocal}
+                   max={startLocal || undefined}
+                   className={`${styles.input} ${errors.registeration_deadline ? styles.inputError : ""}`}
+                 />
+                 {errors.registeration_deadline && (
+                   <span className={styles.errorText}>{errors.registeration_deadline}</span>
+                 )}
+               </div>
+               <div className={styles.inputGroupHalf}>
+                 <label className={styles.label}>Start Date *</label>
+                 <input
+                   type="datetime-local"
+                   name="start_date"
+                   value={formData.start_date}
+                   onChange={handleInputChange}
+                   min={nowLocal}
+                   className={`${styles.input} ${errors.start_date ? styles.inputError : ""}`}
+                 />
+                 {errors.start_date && <span className={styles.errorText}>{errors.start_date}</span>}
+               </div>
+               <div className={styles.inputGroupHalf}>
+                 <label className={styles.label}>End Date *</label>
+                 <input
+                   type="datetime-local"
+                   name="end_date"
+                   value={formData.end_date}
+                   onChange={handleInputChange}
+                   min={startLocal || nowLocal}
+                   className={`${styles.input} ${errors.end_date ? styles.inputError : ""}`}
+                 />
+                 {errors.end_date && <span className={styles.errorText}>{errors.end_date}</span>}
+               </div>
+             </div>
 
-            {/* Venue */}
-            <div className={styles.inputGroup}>
-              <label className={styles.label}>Venue *</label>
-              <input
-                type="text"
-                name="venue"
-                value={formData.venue}
-                onChange={handleInputChange}
-                placeholder="Enter event venue..."
-                className={`${styles.input} ${
-                  errors.venue ? styles.inputError : ""
-                }`}
-                // required
-              />
-              {errors.venue && (
-                <span className={styles.errorText}>{errors.venue}</span>
-              )}
-            </div>
+             {/* Venue */}
+             <div className={styles.inputGroup}>
+               <label className={styles.label}>Venue *</label>
+               <input
+                 type="text"
+                 name="venue"
+                 value={formData.venue}
+                 onChange={handleInputChange}
+                 placeholder="Enter event venue..."
+                 className={`${styles.input} ${errors.venue ? styles.inputError : ""}`}
+               />
+               {errors.venue && <span className={styles.errorText}>{errors.venue}</span>}
+             </div>
 
-            {/* Mode and Price Row */}
-            <div className={styles.row}>
-              <div className={styles.inputGroupHalf}>
-                <label className={styles.label}>Event Mode *</label>
-                <select
-                  name="mode"
-                  value={formData.mode}
-                  onChange={handleInputChange}
-                  className={styles.select}
-                  // required
-                >
-                  <option value="offline">Offline</option>
-                  <option value="online">Online</option>
-                  <option value="hybrid">Hybrid</option>
-                </select>
-              </div>
-              <div className={styles.inputGroupHalf}>
-                <label className={styles.label}>Price (₹)</label>
-                <input
-                  type="number"
-                  name="price"
-                  value={formData.price}
-                  onChange={handleInputChange}
-                  placeholder="0"
-                  className={`${styles.input} ${
-                    errors.price ? styles.inputError : ""
-                  }`}
-                  min="0"
-                  step="0.01"
-                />
-                {errors.price && (
-                  <span className={styles.errorText}>{errors.price}</span>
-                )}
-              </div>
-            </div>
+             {/* Mode and Price Row */}
+             <div className={styles.row}>
+               <div className={styles.inputGroupHalf}>
+                 <label className={styles.label}>Event Mode *</label>
+                 <select
+                   name="mode"
+                   value={formData.mode}
+                   onChange={handleInputChange}
+                   className={styles.select}
+                 >
+                   <option value="offline">Offline</option>
+                   <option value="online">Online</option>
+                   <option value="hybrid">Hybrid</option>
+                 </select>
+               </div>
+               <div className={styles.inputGroupHalf}>
+                 <label className={styles.label}>Price (₹)</label>
+                 <input
+                   type="number"
+                   name="price"
+                   value={formData.price}
+                   onChange={handleInputChange}
+                   placeholder="0"
+                   className={`${styles.input} ${errors.price ? styles.inputError : ""}`}
+                   min="0"
+                   step="0.01"
+                 />
+                 {errors.price && <span className={styles.errorText}>{errors.price}</span>}
+               </div>
+             </div>
 
-            {/* Attendees and Contact Row */}
-            <div className={styles.row}>
-              <div className={styles.inputGroupHalf}>
-                <label className={styles.label}>Maximum Attendees</label>
-                <input
-                  type="number"
-                  name="max_attendees"
-                  value={formData.max_attendees}
-                  onChange={handleInputChange}
-                  placeholder="Enter maximum attendees..."
-                  className={`${styles.input} ${
-                    errors.max_attendees ? styles.inputError : ""
-                  }`}
-                  min="1"
-                />
-                {errors.max_attendees && (
-                  <span className={styles.errorText}>{errors.max_attendees}</span>
-                )}
-              </div>
-              <div className={styles.inputGroupHalf}>
-                <label className={styles.label}>Organiser Contact</label>
-                <input
-                  type="text"
-                  name="organiser_contact"
-                  value={formData.organiser_contact}
-                  onChange={handleInputChange}
-                  placeholder="Phone number or email..."
-                  className={styles.input}
-                />
-              </div>
-            </div>
+             {/* Attendees and Contact Row */}
+             <div className={styles.row}>
+               <div className={styles.inputGroupHalf}>
+                 <label className={styles.label}>Maximum Attendees</label>
+                 <input
+                   type="number"
+                   name="max_attendees"
+                   value={formData.max_attendees}
+                   onChange={handleInputChange}
+                   placeholder="Enter maximum attendees..."
+                   className={`${styles.input} ${errors.max_attendees ? styles.inputError : ""}`}
+                   min="1"
+                 />
+                 {errors.max_attendees && <span className={styles.errorText}>{errors.max_attendees}</span>}
+               </div>
+               <div className={styles.inputGroupHalf}>
+                 <label className={styles.label}>Organiser Contact</label>
+                 <input
+                   type="text"
+                   name="organiser_contact"
+                   value={formData.organiser_contact}
+                   onChange={handleInputChange}
+                   placeholder="Phone number or email..."
+                   className={styles.input}
+                 />
+               </div>
+             </div>
 
-            {/* Event Description Section */}
-            <div className={styles.descriptionSection}>
-              <h2 className={styles.sectionTitle}>Event Details</h2>
+             {/* Event Description Section */}
+             <div className={styles.descriptionSection}>
+               <h2 className={styles.sectionTitle}>Event Details</h2>
 
-              {/* Poster Image */}
-              <div className={styles.inputGroup}>
-                <label className={styles.label}>
-                  Event Poster Image {!isEditMode && "*"}
-                </label>
-                <div className={styles.fileInputWrapper}>
-                  <input
-                    type="file"
-                    name="posterImage"
-                    onChange={handleFileChange}
-                    accept="image/jpeg,image/png,image/webp"
-                    className={styles.fileInput}
-                    id="poster-image"
-                  />
-                  <label htmlFor="poster-image" className={styles.fileInputLabel}>
-                    <div
-                      className={`${styles.uploadArea} ${
-                        errors.posterImage ? styles.uploadAreaError : ""
-                      }`}
-                    >
-                      {imagePreview ? (
-                        <div className={styles.imagePreview}>
-                          <img
-                            src={imagePreview}
-                            alt="Poster preview"
-                            className={styles.previewImage}
-                          />
-                          <div className={styles.imageOverlay}>
-                            <span>🖼️</span>
-                            <span>
-                              Click to {isEditMode ? "change" : "upload"} poster
-                            </span>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className={styles.uploadPlaceholder}>
-                          <span>🖼️</span>
-                          <span>Click to upload poster image</span>
-                          {!isEditMode && <small>Required field</small>}
-                        </div>
-                      )}
-                    </div>
-                  </label>
-                </div>
-                {errors.posterImage && (
-                  <span className={styles.errorText}>{errors.posterImage}</span>
-                )}
-              </div>
+               {/* Poster Image */}
+               <div className={styles.inputGroup}>
+                 <label className={styles.label}>Event Poster Image {!isEditMode && "*"}</label>
+                 <div className={styles.fileInputWrapper}>
+                   <input
+                     type="file"
+                     name="posterImage"
+                     onChange={handleFileChange}
+                     accept="image/jpeg,image/png,image/webp"
+                     className={styles.fileInput}
+                     id="poster-image"
+                   />
+                   <label htmlFor="poster-image" className={styles.fileInputLabel}>
+                     <div className={`${styles.uploadArea} ${errors.posterImage ? styles.uploadAreaError : ""}`}>
+                       {imagePreview ? (
+                         <div className={styles.posterBox}>
+                           <img src={imagePreview} alt="Poster preview" className={styles.posterImg} />
+                           <div className={styles.imageOverlay}>
+                             <span>🖼️</span>
+                             <span>Click to {isEditMode ? "change" : "upload"} poster</span>
+                           </div>
+                         </div>
+                       ) : (
+                         <div className={styles.posterBox}>
+                           <div className={styles.uploadPlaceholderBox}>
+                             <span style={{ fontSize: "1.8rem" }}>🖼️</span>
+                             <span>Upload a 5:4 poster (Recommended: 1250 x 1000px (JPG/PNG/WebP))</span>
+                           </div>
+                         </div>
+                       )}
+                     </div>
+                   </label>
+                 </div>
+                 {errors.posterImage && <span className={styles.errorText}>{errors.posterImage}</span>}
+               </div>
 
-              {/* Description */}
-              <div className={styles.inputGroup}>
-                <label className={styles.label}>Event Description *</label>
-                <textarea
-                  name="description"
-                  value={formData.description}
-                  onChange={handleInputChange}
-                  placeholder="Describe your event in detail..."
-                  className={`${styles.textarea} ${
-                    errors.description ? styles.inputError : ""
-                  }`}
-                  rows={6}
-                  // required
-                />
-                {errors.description && (
-                  <span className={styles.errorText}>{errors.description}</span>
-                )}
-              </div>
-            </div>
-
-            {/* Submit Button */}
+               {/* Description */}
+               <div className={styles.inputGroup}>
+                 <label className={styles.label}>Event Description *</label>
+                 <textarea
+                   name="description"
+                   value={formData.description}
+                   onChange={handleInputChange}
+                   placeholder="Describe your event in detail..."
+                   className={`${styles.textarea} ${errors.description ? styles.inputError : ""}`}
+                   rows={6}
+                 />
+                 {errors.description && <span className={styles.errorText}>{errors.description}</span>}
+               </div>
+             </div>
             <div className={styles.buttonGroup}>
               <button type="submit" className={styles.submitButton} disabled={loading}>
                 {loading ? (isEditMode ? "Updating..." : "Creating...") : isEditMode ? "Update Event" : "Create Event"}
               </button>
-
               {isEditMode && (
                 <button
                   type="button"

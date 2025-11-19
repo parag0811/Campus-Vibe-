@@ -16,7 +16,6 @@ const EventCard = ({ id, image, title, date, time, orgName }) => {
         <div className={styles.card}>
           <div className={styles.imageContainer}>
             <img src={image} alt={title} className={styles.image} />
-            <span className={styles.freeTag}>FREE</span>
           </div>
           <div className={styles.cardContent}>
             <h3 className={styles.eventTitle}>{title}</h3>

@@ -17,7 +17,7 @@ const organisationSchema = new Schema(
       match: [/^\S+@\S+\.\S+$/, "Invalid email"],
     },
     imageName: { type: String, required: true, unique: true },
-    razorpayAccountId: { type: String, required: true },
+    razorpayAccountId: { type: String, /* required: true */},
 
     // Bank details (primary payout)
     bank: {

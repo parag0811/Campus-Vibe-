@@ -157,18 +157,52 @@
   cursor: pointer;
 }
 
+.posterBox {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 5 / 4;    
+  border-radius: 12px;
+  overflow: hidden;
+  background: #000;       
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  line-height: 0; 
+}
+
+.posterImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;     
+  object-position: center;
+  display: block;
+  transition: transform .35s ease;
+}
+
+.imageOverlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,.55);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: .5rem;
+  color: #fff;
+  opacity: 0;
+  transition: opacity .2s ease;
+}
+.posterBox:hover .imageOverlay { opacity: 1; }
+
 .uploadArea {
   border: 2px dashed #d1d5db;
-  border-radius: 8px;
-  padding: 2rem;
+  border-radius: 12px;
+  padding: 1rem;
   text-align: center;
   transition: all 0.2s ease;
   background: #fafafa;
   position: relative;
-  min-height: 200px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: block;
 }
 
 .uploadArea:hover {
@@ -176,63 +210,20 @@
   background: #f8f7ff;
 }
 
-.imagePreview {
-  position: relative;
+.uploadPlaceholderBox {
   width: 100%;
   height: 100%;
-  border-radius: 6px;
-  overflow: hidden;
-}
-
-.previewImage {
-  width: 100%;
-  height: 200px;
-  object-fit: cover;
-  border-radius: 6px;
-}
-
-.imageOverlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
+  background: #f3f4f6;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem;
-  color: white;
-  opacity: 0;
-  transition: opacity 0.2s ease;
-}
-
-.imagePreview:hover .imageOverlay {
-  opacity: 1;
-}
-
-.imageOverlay span:first-child {
-  font-size: 2rem;
-}
-
-.uploadPlaceholder {
-  display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
   color: #6b7280;
+  gap: 6px;
 }
 
-.uploadPlaceholder span:first-child {
-  font-size: 2rem;
-}
-
-.uploadPlaceholder small {
-  font-size: 0.85rem;
-  color: #ef4444;
-  font-weight: 500;
-}
+.imagePreview { width: 100%; height: auto; border-radius: 12px; overflow: hidden; }
+.previewImage { width: 100%; height: 100%; object-fit: cover; }
 
 .fileSelected {
   display: flex;

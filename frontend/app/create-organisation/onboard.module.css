@@ -177,3 +177,13 @@
 .msgError { color: #991b1b; background: #fee2e2; border-color: #fecaca; }
 .msgSuccess { color: #155e75; background: #cffafe; border-color: #a5f3fc; }
 .msgInfo { color: #4b5563; background: #f3f4f6; border-color: #e5e7eb; }
+
+.downloadLink {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #7c3aed;
+  text-decoration: underline;
+  cursor: pointer;
+}

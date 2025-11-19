@@ -13,6 +13,7 @@ export default function CreateOrganisationOnboarding() {
     name: "",
     description: "",
     contact_email: "",
+    razorpayAccountId: "",
     "kyc.fullName": "",
     "kyc.phoneNumber": "",
     bankAccountName: "",
@@ -22,6 +23,7 @@ export default function CreateOrganisationOnboarding() {
   });
   const [image, setImage] = useState(null);
   const [documentFile, setDocumentFile] = useState(null);
+  const [documentDownloadUrl, setDocumentDownloadUrl] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
 
   const [submitting, setSubmitting] = useState(false);
@@ -84,25 +86,29 @@ export default function CreateOrganisationOnboarding() {
     if (!file) return;
     const allowed = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
     if (!allowed.includes(file.type)) {
-      showToast("error", "KYC document must be an image or PDF.");
+      showToast("error", "KYC document must be image (jpg/png/webp) or PDF.");
       return;
     }
     setDocumentFile(file);
+    if (documentDownloadUrl) URL.revokeObjectURL(documentDownloadUrl);
+    setDocumentDownloadUrl(URL.createObjectURL(file));
   };
 
   const validateFrontend = () => {
     const v = {};
-    if (!form.name || form.name.trim().length < 6) v.name = "Name must be 6-60 characters.";
-    if (!form.description || form.description.trim().length < 6) v.description = "Description must be 6-100 characters.";
+    if (!form.name || form.name.trim().length < 6 || form.name.trim().length > 60) v.name = "Name must be 6-60 characters.";
+    if (!form.description || form.description.trim().length < 6 || form.description.trim().length > 100) v.description = "Description must be 6-100 characters.";
     if (!form.contact_email || !/^\S+@\S+\.\S+$/.test(form.contact_email)) v.contact_email = "Enter a valid email.";
+    if (!form.razorpayAccountId || !/^acc_[A-Za-z0-9]+$/.test(form.razorpayAccountId) || form.razorpayAccountId.length < 10 || form.razorpayAccountId.length > 40)
+      v.razorpayAccountId = "Invalid Razorpay Account ID.";
     if (!form["kyc.fullName"] || form["kyc.fullName"].trim().length < 2) v["kyc.fullName"] = "Full name is required.";
     if (!form["kyc.phoneNumber"] || !/^[0-9+\-\s]{6,15}$/.test(form["kyc.phoneNumber"])) v["kyc.phoneNumber"] = "Enter a valid phone number.";
-    if (!form.bankAccountName || form.bankAccountName.trim().length < 2) v.bankAccountName = "Bank account name is required.";
-    if (!form.bankAccountNumber || !/^[0-9]{9,18}$/.test(form.bankAccountNumber)) v.bankAccountNumber = "Enter a valid account number.";
+    if (!form.bankAccountName || form.bankAccountName.trim().length < 2) v.bankAccountName = "Account name required.";
+    if (!form.bankAccountNumber || !/^[0-9]{9,18}$/.test(form.bankAccountNumber)) v.bankAccountNumber = "Invalid account number.";
     if (!form.bankIfsc || !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(form.bankIfsc.trim().toUpperCase())) v.bankIfsc = "Invalid IFSC code.";
-    if (!form.bankAddress || form.bankAddress.trim().length < 5) v.bankAddress = "Enter a valid address.";
-    if (!image) v.image = "Organisation logo is required.";
-    if (!documentFile) v.document = "KYC document is required.";
+    if (!form.bankAddress || form.bankAddress.trim().length < 5) v.bankAddress = "Address too short.";
+    if (!image) v.image = "Organisation logo required.";
+    if (!documentFile) v.document = "KYC document required.";
     return v;
   };
 
@@ -121,6 +127,7 @@ export default function CreateOrganisationOnboarding() {
     fd.append("name", form.name.trim());
     fd.append("description", form.description.trim());
     fd.append("contact_email", form.contact_email.trim().toLowerCase());
+    fd.append("razorpayAccountId", form.razorpayAccountId.trim());
     fd.append("kyc.fullName", form["kyc.fullName"].trim());
     fd.append("kyc.phoneNumber", form["kyc.phoneNumber"].trim());
     fd.append("bankAccountName", form.bankAccountName.trim());
@@ -132,7 +139,7 @@ export default function CreateOrganisationOnboarding() {
 
     setSubmitting(true);
     try {
-      const res = await fetch(`${API_BASE}/organisationAdmin/create-organisation`, {
+      const res = await fetch(`${API_BASE}/org/organisationAdmin/create-organisation`, {
         method: "POST",
         credentials: "include",
         body: fd,
@@ -223,6 +230,19 @@ export default function CreateOrganisationOnboarding() {
                 />
                 {errors.contact_email && <div className={styles.error}>{errors.contact_email}</div>}
               </div>
+            </div>
+
+            <div className={styles.formGroup}>
+              <label className={styles.label} htmlFor="razorpayAccountId">Razorpay Account ID</label>
+              <input
+                id="razorpayAccountId"
+                name="razorpayAccountId"
+                className={`${styles.input} ${errors.razorpayAccountId ? styles.inputError : ""}`}
+                value={form.razorpayAccountId}
+                onChange={onChange}
+                placeholder="acc_XXXXXXXXXXXX"
+              />
+              {errors.razorpayAccountId && <div className={styles.error}>{errors.razorpayAccountId}</div>}
             </div>
 
             <div className={styles.formGroup}>
@@ -346,7 +366,7 @@ export default function CreateOrganisationOnboarding() {
                 <input
                   id="document"
                   type="file"
-                  accept="image/*,application/pdf"
+                  accept="image/jpeg,image/png,image/webp,application/pdf"
                   onChange={onDocChange}
                   className={styles.fileInputHidden}
                 />
@@ -354,6 +374,15 @@ export default function CreateOrganisationOnboarding() {
                   <label htmlFor="document" className={styles.fileButton}>Choose Document</label>
                   <span className={styles.fileName}>{documentFile?.name || "No file chosen"}</span>
                 </div>
+                {documentDownloadUrl && (
+                  <a
+                    href={documentDownloadUrl}
+                    download={documentFile?.name || "kyc-document"}
+                    className={styles.downloadLink}
+                  >
+                    Download selected document
+                  </a>
+                )}
                 {errors.document && <div className={styles.error}>{errors.document}</div>}
               </div>
             </div>

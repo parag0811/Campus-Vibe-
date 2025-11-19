@@ -6,21 +6,20 @@ import { useToast } from "@/components/common/toast";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
-const EventCard = ({ id, image, title, date, time, orgName }) => {
+const EventCard = ({ id, image, title, date, time, orgName, promoted }) => {
   const router = useRouter();
   const handleClick = () => router.push(`/events/${id}`);
 
   return (
     <div className={styles.cardWrapper} onClick={handleClick}>
-      <div className={styles.card}>
-        <div className={styles.imageContainer}>
-          <img src={image} alt={title} className={styles.image} />
+      <div className={styles.posterCard}>
+        <div className={styles.posterBox}>
+          <img src={image} alt={title} className={styles.posterImg} />
+          {promoted && <span className={styles.promotedBadge}>PROMOTED</span>}
         </div>
         <div className={styles.cardContent}>
           <h3 className={styles.eventTitle}>{title}</h3>
-          <p className={styles.eventDate}>
-            {date}, {time}
-          </p>
+          <p className={styles.eventDate}>{date}, {time}</p>
           <p className={styles.eventType}>{orgName || "Organisation"}</p>
         </div>
       </div>
@@ -62,6 +61,7 @@ export default function AllEvents() {
             date: fmt(start, { weekday: "long", month: "long", day: "numeric" }),
             time: fmt(start, { hour: "numeric", minute: "2-digit" }),
             orgName: ev?.organisation?.name || ev?.created_by_organisation?.name || "Organisation",
+            promoted: !!ev.promoted
           };
         });
 
@@ -73,7 +73,7 @@ export default function AllEvents() {
     };
 
     fetchEvents();
-  }, []);
+  }, [toast]);
 
   const loadMore = () => setVisibleEvents((prev) => prev + 6);
 
@@ -92,21 +92,13 @@ export default function AllEvents() {
         )}
 
         {events.slice(0, visibleEvents).map((event) => (
-          <EventCard
-            key={event.id}
-            id={event.id}
-            image={event.image}
-            title={event.title}
-            date={event.date}
-            time={event.time}
-            orgName={event.orgName}
-          />
+          <EventCard key={event.id} {...event} />
         ))}
       </div>
 
       {events.length > visibleEvents && (
         <div className={styles.paginationContainer}>
-          <button className={styles.paginationButton} onClick={loadMore}>
+          <button className={styles.loadMoreButton} onClick={loadMore}>
             Load More
           </button>
         </div>
