@@ -50,7 +50,9 @@ const EventDetailPage = () => {
         setOrganisation(org ? { ...org, logoUrl: orgLogoUrl } : null);
 
         if (ev.attendees && user?._id) {
-          setUserRegistered(ev.attendees.map(String).includes(String(user._id)));
+          setUserRegistered(
+            ev.attendees.map(String).includes(String(user._id))
+          );
         }
       } catch (err) {
         toast.error(
@@ -96,7 +98,10 @@ const EventDetailPage = () => {
       });
       const orderData = await orderResp.json();
 
-      if (orderResp.status === 403 && orderData?.code === "PROFILE_INCOMPLETE") {
+      if (
+        orderResp.status === 403 &&
+        orderData?.code === "PROFILE_INCOMPLETE"
+      ) {
         toast.error("Please complete your profile to register for events.");
         router.push("/profile");
         return;
@@ -118,32 +123,39 @@ const EventDetailPage = () => {
         theme: { color: "#7c3aed" },
         handler: async function (response) {
           try {
-            const verifyResp = await fetch(`${API_BASE}/payment/verify-payment`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              credentials: "include",
-              body: JSON.stringify({
-                razorpay_order_id: response.razorpay_order_id,
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_signature: response.razorpay_signature,
-              }),
-            });
+            const verifyResp = await fetch(
+              `${API_BASE}/payment/verify-payment`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({
+                  razorpay_order_id: response.razorpay_order_id,
+                  razorpay_payment_id: response.razorpay_payment_id,
+                  razorpay_signature: response.razorpay_signature,
+                }),
+              }
+            );
             const verifyData = await verifyResp.json();
             if (!verifyResp.ok || !verifyData?.success) {
-              throw new Error(verifyData.message || "Payment verification failed");
+              throw new Error(
+                verifyData.message || "Payment verification failed"
+              );
             }
             toast.success("Payment successful!");
             setUserRegistered(true);
             router.push(
               `/payment/success?bookingId=${encodeURIComponent(
                 verifyData.bookingId
-              )}&ticketId=${encodeURIComponent(verifyData.ticketId || "")}&eventId=${encodeURIComponent(
-                verifyData.eventId || eventId
-              )}`
+              )}&ticketId=${encodeURIComponent(
+                verifyData.ticketId || ""
+              )}&eventId=${encodeURIComponent(verifyData.eventId || eventId)}`
             );
           } catch (e) {
             toast.error(e.message || "Payment verification failed");
-            router.push(`/payment/failed?eventId=${encodeURIComponent(eventId)}`);
+            router.push(
+              `/payment/failed?eventId=${encodeURIComponent(eventId)}`
+            );
           }
         },
         modal: { ondismiss: () => toast.error("Payment cancelled.") },
@@ -217,66 +229,106 @@ const EventDetailPage = () => {
 
   return (
     <div className={styles.container}>
-      <section
-        className={styles.heroSection}
+      <div
+        className={styles.heroBG}
         style={{
-          backgroundImage: event.posterUrl ? `url(${event.posterUrl})` : "none",
+          backgroundImage: event.posterUrl
+            ? `linear-gradient(120deg,#12161d 0%,#1e2330 55%,#222b45 100%), url(${event.posterUrl})`
+            : `linear-gradient(120deg,#12161d 0%,#1e2330 55%,#222b45 100%)`,
         }}
-      />
+      >
+        <div className={styles.heroOverlay}></div>
+        <div className={styles.heroWrapper}>
+          <div
+            className={styles.posterBox}
+            style={{
+              backgroundImage: event.posterUrl
+                ? `url(${event.posterUrl})`
+                : "none",
+            }}
+          />
+          <div className={styles.heroRightSide}>
+            <h1 className={styles.heroTitleClean}>{event.title}</h1>
+            <div className={styles.quickMeta}>
+              <span>{formatDate(event.start_date)}</span>
+              {event.end_date && <span>Ends: {formatDate(event.end_date)}</span>}
+              <span>{event.mode?.[0]?.toUpperCase() + event.mode?.slice(1)}</span>
+              <span>{event.venue}</span>
+              <span>{isFree() ? "Free" : `₹${event.price}`}</span>
+            </div>
+            <div className={styles.orgStrip}>
+              {organisation?.logoUrl && (
+                <img
+                  src={organisation.logoUrl}
+                  alt={organisation?.name || "Organisation"}
+                />
+              )}
+              <span>{organisation?.name || "Organizer"}</span>
+            </div>
 
-      {/* Content Section */}
+            <div className={styles.eventCard}>
+              <div className={styles.dateTimeSection}>
+                <h3 className={styles.sectionTitle}>Event Dates</h3>
+                <p className={styles.eventDate}>
+                  <strong>
+                    {event.start_date && event.end_date
+                      ? `${formatDate(event.start_date)} to ${formatDate(
+                          event.end_date
+                        )}`
+                      : formatDate(event.start_date)}
+                  </strong>
+                </p>
+                <p className={styles.regDeadline}>
+                  <span style={{ fontWeight: 500 }}>Registration Deadline:</span>{" "}
+                  {formatDate(event.registeration_deadline)}
+                </p>
+              </div>
+              <button
+                className={styles.bookNowBtn}
+                onClick={handleRegistration}
+                disabled={
+                  userRegistered || !isRegistrationOpen() || isRegistering
+                }
+              >
+                {userRegistered
+                  ? "Already Registered"
+                  : isRegistering
+                  ? "Registering..."
+                  : !isRegistrationOpen()
+                  ? "Registration Closed"
+                  : isFree()
+                  ? "Register Now"
+                  : `Register - ₹${event.price}`}
+              </button>
+              <div className={styles.registrationInfo}>
+                {event.max_attendees && (
+                  <p className={styles.availability}>
+                    {event.max_attendees - (event.attendees?.length || 0)} spots
+                    remaining
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <section className={styles.contentSection}>
         <div className={styles.contentWrapper}>
           <div className={styles.leftContent}>
-            <div className={styles.titleRow}>
-              <button
-                className={styles.backBtnPurple}
-                onClick={() => router.back()}
-              >
-                ← Back
-              </button>
-            </div>
-            <h1 className={styles.headerTitle}>{event.title}</h1>
-            <div className={styles.organiserCard + " " + styles.orgSection}>
-              <div className={styles.orgAvatar}>
-                {organisation?.logoUrl ? (
-                  <img
-                    src={organisation.logoUrl}
-                    alt={organisation?.name || "Organisation"}
-                  />
-                ) : (
-                  <div className={styles.orgAvatarFallback}>
-                    {organisation?.name?.[0] || "O"}
-                  </div>
-                )}
-              </div>
-              <div className={styles.orgMeta}>
-                <div className={styles.orgName}>
-                  {organisation?.name || "Event Organizer"}
-                </div>
-                {organisation?.contact_email && (
-                  <div className={styles.orgEmail}>
-                    {organisation.contact_email}
-                  </div>
-                )}
-              </div>
-            </div>
             <div className={styles.descriptionSection}>
               <h2 className={styles.sectionTitle}>Description</h2>
               <div className={styles.descriptionText}>
                 <p>{event.description}</p>
               </div>
             </div>
-
-            {/* Event details */}
             <div className={styles.eventDetailsSection}>
               <h2 className={styles.sectionTitle}>Event Details</h2>
               <div className={styles.eventDetails}>
                 <div className={styles.detailItem}>
                   <span className={styles.detailLabel}>Mode:</span>
                   <span className={styles.detailValue}>
-                    {event.mode?.charAt(0).toUpperCase() +
-                      (event.mode?.slice(1) || "")}
+                    {event.mode?.[0]?.toUpperCase() + event.mode?.slice(1)}
                   </span>
                 </div>
                 <div className={styles.detailItem}>
@@ -305,7 +357,6 @@ const EventDetailPage = () => {
                 </div>
               </div>
             </div>
-
             <div className={styles.contactSection}>
               <h2 className={styles.sectionTitle}>Organizer Contact</h2>
               <p>
@@ -315,75 +366,7 @@ const EventDetailPage = () => {
               </p>
             </div>
           </div>
-
-          {/* Right side unchanged */}
-          <div className={styles.rightContent}>
-            <div className={styles.eventCard}>
-              <div className={styles.dateTimeSection}>
-                <h3 className={styles.sectionTitle}>Event Dates :</h3>
-                <p className={styles.eventDate}>
-                  <strong>
-                    {event.start_date && event.end_date
-                      ? `${formatDate(event.start_date)} to ${formatDate(
-                          event.end_date
-                        )}`
-                      : formatDate(event.start_date)}
-                  </strong>
-                </p>
-                <p className={styles.regDeadline}>
-                  <span style={{ fontWeight: 500 }}>
-                    Registration Deadline:
-                  </span>{" "}
-                  {formatDate(event.registeration_deadline)}
-                </p>
-              </div>
-              <button
-                className={styles.bookNowBtn}
-                onClick={handleRegistration}
-                disabled={
-                  userRegistered ||
-                  !isRegistrationOpen() ||
-                  isRegistering
-                }
-              >
-                {userRegistered
-                  ? "Already Registered"
-                  : isRegistering
-                  ? "Registering..."
-                  : !isRegistrationOpen()
-                  ? "Registration Closed"
-                  : isFree()
-                  ? "Register Now"
-                  : `Register - ₹${event.price}`}
-              </button>
-              <div className={styles.registrationInfo}>
-                {event.max_attendees && (
-                  <p className={styles.availability}>
-                    {event.max_attendees - (event.attendees?.length || 0)} spots
-                    remaining
-                  </p>
-                )}
-              </div>
-            </div>
-
-            <div className={styles.shareSection}>
-              <h3 className={styles.sectionTitle}>Share with friends</h3>
-              <div className={styles.socialButtons}>
-                <button className={styles.socialBtn + " " + styles.facebook}>
-                  f
-                </button>
-                <button className={styles.socialBtn + " " + styles.whatsapp}>
-                  W
-                </button>
-                <button className={styles.socialBtn + " " + styles.linkedin}>
-                  in
-                </button>
-                <button className={styles.socialBtn + " " + styles.twitter}>
-                  t
-                </button>
-              </div>
-            </div>
-          </div>
+          <div className={styles.rightContent}></div>
         </div>
       </section>
     </div>
