@@ -9,10 +9,10 @@ const Organisation = require("../models/organisation.js");
 const Payment = require("../models/payment.js");
 const Ticket = require("../models/ticket.js");
 const EventAnalytics = require("../models/event-analytics.js");
-const User = require("../models/user.js"); // ADD
+const User = require("../models/user.js"); 
 
 const RZP_KEY_ID = process.env.RAZORPAY_KEY_ID;
-const RZP_KEY_SECRET = process.env.RAZORPAY_KEY_ID_SECRET;
+const RZP_KEY_SECRET = process.env.RAZORPAY_KEY_ID_SECRET; 
 
 const razorpay = new Razorpay({
   key_id: RZP_KEY_ID,
@@ -27,6 +27,18 @@ exports.createOrder = async (req, res, next) => {
       return res
         .status(400)
         .json({ success: false, message: "EventId not found." });
+
+    // Block organisation admins from registering/paying
+    const user = await User.findById(userId).select("role").lean();
+    if (!user) {
+      return res.status(401).json({ success: false, message: "Unauthorized." });
+    }
+    if (user.role === "organisationAdmin") {
+      return res.status(403).json({
+        success: false,
+        message: "Organisation admins cannot register for events.",
+      });
+    }
 
     const event = await Event.findById(eventId).lean();
     if (!event)

@@ -105,6 +105,18 @@ exports.eventRegistration = async (req, res, next) => {
       throw error;
     }
 
+    // Block organisation admins from registering
+    const user = await User.findById(req.userId).select("role").lean();
+    if (!user) {
+      return res.status(401).json({ success: false, message: "Unauthorized." });
+    }
+    if (user.role === "organisationAdmin") {
+      return res.status(403).json({
+        success: false,
+        message: "Organisation admins cannot register for events.",
+      });
+    }
+
     const now = new Date();
     if (new Date(event.registeration_deadline) < now) {
       return res.status(409).json({ success: false, message: "Registration deadline has passed." });
