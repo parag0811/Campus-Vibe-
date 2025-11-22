@@ -66,7 +66,7 @@ export default function AdminLayout({ children }) {
   return (
     <div className={styles.adminContainer}>
       <header className={styles.header}>
-        <div className={styles.logo}>Campus Vibe</div>
+        <Link className={styles.logo} href="/">Campus Vibe</Link>
       </header>
 
       <div className={styles.contentWrapper}>

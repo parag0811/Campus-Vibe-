@@ -414,7 +414,6 @@ exports.getEventAnalytics = async (req, res, next) => {
         $setOnInsert: {
           event: eventId,
           "revenue.currency": "INR",
-          "payout.payoutMode": "manual",
         },
       },
       { upsert: true, new: true }

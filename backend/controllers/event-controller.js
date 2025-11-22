@@ -540,7 +540,6 @@ exports.getEventAnalytics = async (req, res, next) => {
             lastPaymentAt: null
           },
           payout: {
-            linkedRazorpayAccountId: null,
             payoutMode: "manual",
             paidOutPaise: 0,
             pendingPayoutPaise: 0,

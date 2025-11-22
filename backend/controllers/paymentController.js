@@ -276,10 +276,10 @@ exports.verifyPayment = async (req, res, next) => {
           "revenue.grossAmountPaise": payment.amount || 0,
           "revenue.platformFeePaise": payment.platformFee || 0,
           "revenue.orgSharePaise": payment.orgShare || 0,
-          "payout.pendingPayoutPaise": payment.orgShare || 0
+          "payout.pendingPayoutPaise": payment.orgShare || 0,
         },
         $set: { "payout.payoutMode": "manual" },
-        $max: { "revenue.lastPaymentAt": new Date() }
+        $max: { "revenue.lastPaymentAt": new Date() },
       },
       { upsert: true }
     );

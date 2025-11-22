@@ -34,8 +34,10 @@ const EventDetailPage = () => {
         const ev = data.event || {};
         const posterUrl =
           ev.imageUrl ||
-          (ev.posterImage && /^https?:\/\//i.test(ev.posterImage)
-            ? ev.posterImage
+          (ev.posterImage
+            ? (/^https?:\/\//i.test(ev.posterImage)
+                ? ev.posterImage
+                : `${API_BASE}/public/${ev.posterImage}`)
             : null);
 
         const org = ev.organisation || ev.created_by_organisation || null;
@@ -194,13 +196,16 @@ const EventDetailPage = () => {
     });
   };
 
+  const isFree = () => Number(event?.price) === 0;
+
+  // Optionally tighten registration window:
   const isRegistrationOpen = () => {
     if (!event) return false;
     const now = new Date();
     const deadline = new Date(event.registeration_deadline);
-    return now < deadline;
+    const start = new Date(event.start_date);
+    return now < deadline && now < start;
   };
-  const isFree = () => event?.price === 0;
 
   if (loading) {
     return (
@@ -230,88 +235,96 @@ const EventDetailPage = () => {
   return (
     <div className={styles.container}>
       <div
-        className={styles.heroBG}
-        style={{
-          backgroundImage: event.posterUrl
-            ? `linear-gradient(120deg,#12161d 0%,#1e2330 55%,#222b45 100%), url(${event.posterUrl})`
-            : `linear-gradient(120deg,#12161d 0%,#1e2330 55%,#222b45 100%)`,
-        }}
-      >
-        <div className={styles.heroOverlay}></div>
-        <div className={styles.heroWrapper}>
-          <div
-            className={styles.posterBox}
-            style={{
-              backgroundImage: event.posterUrl
-                ? `url(${event.posterUrl})`
-                : "none",
-            }}
-          />
-          <div className={styles.heroRightSide}>
-            <h1 className={styles.heroTitleClean}>{event.title}</h1>
-            <div className={styles.quickMeta}>
-              <span>{formatDate(event.start_date)}</span>
-              {event.end_date && <span>Ends: {formatDate(event.end_date)}</span>}
-              <span>{event.mode?.[0]?.toUpperCase() + event.mode?.slice(1)}</span>
-              <span>{event.venue}</span>
-              <span>{isFree() ? "Free" : `₹${event.price}`}</span>
-            </div>
-            <div className={styles.orgStrip}>
-              {organisation?.logoUrl && (
-                <img
-                  src={organisation.logoUrl}
-                  alt={organisation?.name || "Organisation"}
-                />
-              )}
-              <span>{organisation?.name || "Organizer"}</span>
-            </div>
+  className={styles.heroBG}
+  style={{
+    backgroundImage: event.posterUrl ? `url(${event.posterUrl})` : "none",
+  }}
+>
+  <div className={styles.heroShade}></div> 
+  <div className={styles.heroBlur}></div> 
 
-            <div className={styles.eventCard}>
-              <div className={styles.dateTimeSection}>
-                <h3 className={styles.sectionTitle}>Event Dates</h3>
-                <p className={styles.eventDate}>
-                  <strong>
-                    {event.start_date && event.end_date
-                      ? `${formatDate(event.start_date)} to ${formatDate(
-                          event.end_date
-                        )}`
-                      : formatDate(event.start_date)}
-                  </strong>
-                </p>
-                <p className={styles.regDeadline}>
-                  <span style={{ fontWeight: 500 }}>Registration Deadline:</span>{" "}
-                  {formatDate(event.registeration_deadline)}
-                </p>
-              </div>
-              <button
-                className={styles.bookNowBtn}
-                onClick={handleRegistration}
-                disabled={
-                  userRegistered || !isRegistrationOpen() || isRegistering
-                }
-              >
-                {userRegistered
-                  ? "Already Registered"
-                  : isRegistering
-                  ? "Registering..."
-                  : !isRegistrationOpen()
-                  ? "Registration Closed"
-                  : isFree()
-                  ? "Register Now"
-                  : `Register - ₹${event.price}`}
-              </button>
-              <div className={styles.registrationInfo}>
-                {event.max_attendees && (
-                  <p className={styles.availability}>
-                    {event.max_attendees - (event.attendees?.length || 0)} spots
-                    remaining
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
+  <div className={styles.heroWrapper}>
+    {/* LEFT POSTER */}
+    <div
+      className={styles.posterBox}
+      style={{
+        backgroundImage: event.posterUrl ? `url(${event.posterUrl})` : "none",
+      }}
+    />
+
+    {/* RIGHT SIDE */}
+    <div className={styles.heroRightSide}>
+      <h1 className={styles.heroTitleClean}>{event.title}</h1>
+
+      <div className={styles.quickMeta}>
+        <span>{formatDate(event.start_date)}</span>
+        {event.end_date && <span>Ends: {formatDate(event.end_date)}</span>}
+        <span>
+          {event.mode?.[0]?.toUpperCase() + event.mode?.slice(1)}
+        </span>
+        <span>{event.venue}</span>
+        <span>{isFree() ? "Free" : `₹${event.price}`}</span>
+      </div>
+
+      <div className={styles.orgStrip}>
+        {organisation?.logoUrl && (
+          <img src={organisation.logoUrl} alt="org" />
+        )}
+        <span>{organisation?.name || "Organizer"}</span>
+      </div>
+
+      {/** REGISTER CARD (unchanged) */}
+      <div className={styles.eventCard}>
+        <div className={styles.dateTimeSection}>
+          <h3 className={styles.sectionTitle}>Event Dates</h3>
+
+          <p className={styles.eventDate}>
+            <strong>
+              {event.start_date && event.end_date
+                ? `${formatDate(event.start_date)} to ${formatDate(
+                    event.end_date
+                  )}`
+                : formatDate(event.start_date)}
+            </strong>
+          </p>
+
+          <p className={styles.regDeadline}>
+            <span style={{ fontWeight: 500 }}>Registration Deadline:</span>{" "}
+            {formatDate(event.registeration_deadline)}
+          </p>
+        </div>
+
+        <button
+          className={styles.bookNowBtn}
+          onClick={handleRegistration}
+          disabled={
+            userRegistered || !isRegistrationOpen() || isRegistering
+          }
+        >
+          {userRegistered
+            ? "Already Registered"
+            : isRegistering
+            ? "Registering..."
+            : !isRegistrationOpen()
+            ? "Registration Closed"
+            : isFree()
+            ? "Register Now"
+            : `Register - ₹${event.price}`}
+        </button>
+
+        <div className={styles.registrationInfo}>
+          {event.max_attendees && (
+            <p className={styles.availability}>
+              {event.max_attendees - (event.attendees?.length || 0)} spots
+              remaining
+            </p>
+          )}
         </div>
       </div>
+    </div>
+  </div>
+</div>
+
 
       <section className={styles.contentSection}>
         <div className={styles.contentWrapper}>
