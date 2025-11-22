@@ -185,122 +185,55 @@ exports.createOrder = async (req, res, next) => {
 
 exports.verifyPayment = async (req, res, next) => {
   try {
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } =
-      req.body;
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
     const userId = req.userId;
 
     if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "Missing Razorpay verification fields",
-        });
+      return res.status(400).json({ success: false, message: "Missing Razorpay verification fields" });
     }
 
     const body = `${razorpay_order_id}|${razorpay_payment_id}`;
-    const expectedSignature = crypto
-      .createHmac("sha256", RZP_KEY_SECRET)
-      .update(body)
-      .digest("hex");
+    const expectedSignature = crypto.createHmac("sha256", RZP_KEY_SECRET).update(body).digest("hex");
     if (expectedSignature !== razorpay_signature) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Invalid payment signature" });
+      return res.status(400).json({ success: false, message: "Invalid payment signature" });
     }
 
-    const rpPayment = await razorpay.payments.fetch(razorpay_payment_id);
+    let rpPayment = await razorpay.payments.fetch(razorpay_payment_id);
     if (!rpPayment || rpPayment.order_id !== razorpay_order_id) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Payment mismatch" });
+      return res.status(400).json({ success: false, message: "Payment mismatch" });
+    }
+    // Capture if account is on manual capture
+    if (rpPayment.status === "authorized") {
+      try {
+        await razorpay.payments.capture(razorpay_payment_id, rpPayment.amount, rpPayment.currency || "INR");
+        rpPayment = await razorpay.payments.fetch(razorpay_payment_id);
+      } catch (e) {
+        return res.status(400).json({ success: false, message: e?.error?.description || "Payment capture failed" });
+      }
     }
     if (rpPayment.status !== "captured") {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: `Payment not captured (${rpPayment.status})`,
-        });
+      return res.status(400).json({ success: false, message: `Payment not captured (${rpPayment.status})` });
     }
 
     const payment = await Payment.findOne({ orderId: razorpay_order_id });
     if (!payment) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Payment record not found" });
+      return res.status(404).json({ success: false, message: "Payment record not found" });
     }
     if (String(payment.user) !== String(userId)) {
-      return res
-        .status(403)
-        .json({
-          success: false,
-          message: "Payment does not belong to this user",
-        });
+      return res.status(403).json({ success: false, message: "Payment does not belong to this user" });
     }
     const event = await Event.findById(payment.event);
     if (!event) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Event not found" });
+      return res.status(404).json({ success: false, message: "Event not found" });
     }
 
-    // Duplicate / capacity / deadline checks again (race safety)
-    const now = new Date();
-    if (
-      new Date(event.registeration_deadline) < now ||
-      new Date(event.start_date) <= now
-    ) {
-      return res
-        .status(409)
-        .json({ success: false, message: "Registration period closed." });
-    }
-    if (
-      event.max_attendees &&
-      Array.isArray(event.attendees) &&
-      event.attendees.length >= event.max_attendees
-    ) {
-      return res
-        .status(409)
-        .json({ success: false, message: "Registrations are full." });
-    }
-    const alreadyAttendee = (event.attendees || []).some(
-      (a) => String(a) === String(userId)
-    );
-
+    // idempotency
     if (payment.status === "paid") {
-      // If already marked paid earlier, just return
-      const existingTicket = await Ticket.findOne({
-        bookingId: payment.receipt,
-      }).lean();
-      return res.status(200).json({
-        success: true,
-        bookingId: payment.receipt,
-        ticketId: existingTicket?._id,
-        eventId: String(payment.event),
-      });
+      const existingTicket = await Ticket.findOne({ bookingId: payment.receipt }).lean();
+      return res.json({ success:true, bookingId: payment.receipt, ticketId: existingTicket?._id, eventId: String(payment.event) });
     }
 
-    if (alreadyAttendee) {
-      // Payment captured but attendee already recorded (edge)
-      payment.paymentId = razorpay_payment_id;
-      payment.status = "paid";
-      payment.method = rpPayment.method;
-      payment.email = rpPayment.email;
-      payment.contact = rpPayment.contact;
-      await payment.save();
-      const existingTicket = await Ticket.findOne({
-        bookingId: payment.receipt,
-      }).lean();
-      return res.status(200).json({
-        success: true,
-        bookingId: payment.receipt,
-        ticketId: existingTicket?._id,
-        eventId: String(payment.event),
-      });
-    }
-
-    // Normal success path
+    // mark payment
     payment.paymentId = razorpay_payment_id;
     payment.status = "paid";
     payment.method = rpPayment.method;
@@ -308,6 +241,13 @@ exports.verifyPayment = async (req, res, next) => {
     payment.contact = rpPayment.contact;
     await payment.save();
 
+    // add attendee + ticket
+    const already = (event.attendees || []).some(a => String(a) === String(userId));
+    if (!already) {
+      event.attendees = event.attendees || [];
+      event.attendees.push(userId);
+      await event.save();
+    }
     let ticket = await Ticket.findOne({ bookingId: payment.receipt });
     if (!ticket) {
       ticket = await Ticket.create({
@@ -315,113 +255,37 @@ exports.verifyPayment = async (req, res, next) => {
         user: payment.user,
         event: payment.event,
         payment: payment._id,
-        status: "active",
+        status: "active"
       });
     }
+    await User.updateOne({ _id: userId }, { $addToSet: { registered_Events: event._id } });
 
-    event.attendees = event.attendees || [];
-    event.attendees.push(userId);
-    await event.save();
-
-    await User.updateOne(
-      { _id: userId },
-      { $addToSet: { registered_Events: event._id } }
-    );
-    try {
-      const u = await User.findById(userId).lean();
-      const payload = {
-        name: u?.name || null,
-        email: u?.email || null,
-        age: u?.age || null,
-        college_name: u?.college_name || null,
-        college_id: u?.college_id || null,
-      };
-      await EventAnalytics.updateOne(
-        {
-          event: payment.event,
-          "registered_Users.email": { $ne: payload.email },
-        },
-        {
-          $setOnInsert: { event: payment.event, "revenue.currency": "INR" },
-          $inc: { registerations: 1 },
-          $push: { registered_Users: payload },
-        },
-        { upsert: true }
-      );
-    } catch (e) {
-      console.warn("Analytics update skipped (paid):", e.message || e);
-    }
-
+    // credit org pending balance (manual payout)
     await Organisation.findByIdAndUpdate(payment.organisation, {
-      $inc: {
-        pendingPayoutBalance: payment.orgShare,
-        totalEarnings: payment.orgShare,
-      },
+      $inc: { pendingPayoutBalance: payment.orgShare, totalEarnings: payment.orgShare }
     });
 
-    const orgData = await Organisation.findById(payment.organisation).lean();
-
-    if (!orgData.razorpayAccountId) {
-      throw new Error("Organisation is missing Razorpay Route linked account.");
-    }
-
-    await razorpay.transfers.create({
-      account: orgData.razorpayAccountId,
-      amount: payment.orgShare,
-      currency: "INR",
-      notes: {
-        organisation: orgData.name,
-        event: event.title,
-        paymentId: payment.paymentId,
-      },
-    });
-
-    // ...existing revenue analytics code remains...
-    try {
-      const method = (payment.method || "").toLowerCase();
-      const methodField =
-        method === "upi"
-          ? "revenue.methodBreakdown.upi"
-          : method === "card"
-          ? "revenue.methodBreakdown.card"
-          : method === "netbanking"
-          ? "revenue.methodBreakdown.netbanking"
-          : method === "wallet"
-          ? "revenue.methodBreakdown.wallet"
-          : method === "emi"
-          ? "revenue.methodBreakdown.emi"
-          : "revenue.methodBreakdown.other";
-
-      const inc = {
-        "revenue.ticketsSold": 1,
-        "revenue.grossAmountPaise": payment.amount || 0,
-        "revenue.platformFeePaise": payment.platformFee || 0,
-        "revenue.orgSharePaise": payment.orgShare || 0,
-        "payout.pendingPayoutPaise": payment.orgShare || 0,
-      };
-      inc[methodField] = 1;
-
-      await EventAnalytics.findOneAndUpdate(
-        { event: payment.event },
-        {
-          $setOnInsert: { event: payment.event, "revenue.currency": "INR" },
-          $inc: inc,
-          $max: { "revenue.lastPaymentAt": new Date() },
+    // analytics
+    await EventAnalytics.findOneAndUpdate(
+      { event: payment.event },
+      {
+        $setOnInsert: { event: payment.event, "revenue.currency": "INR" },
+        $inc: {
+          registerations: 1,
+          "revenue.ticketsSold": 1,
+          "revenue.grossAmountPaise": payment.amount || 0,
+          "revenue.platformFeePaise": payment.platformFee || 0,
+          "revenue.orgSharePaise": payment.orgShare || 0,
+          "payout.pendingPayoutPaise": payment.orgShare || 0
         },
-        { upsert: true, new: true }
-      );
-    } catch (_) {}
+        $set: { "payout.payoutMode": "manual" },
+        $max: { "revenue.lastPaymentAt": new Date() }
+      },
+      { upsert: true }
+    );
 
-    return res.status(200).json({
-      success: true,
-      bookingId: payment.receipt,
-      ticketId: ticket._id,
-      eventId: String(payment.event),
-    });
-  } catch (err) {
-    if (!err.statusCode) err.statusCode = 500;
-    next(err);
-  }
+    return res.json({ success:true, bookingId: payment.receipt, ticketId: ticket._id, eventId: String(payment.event) });
+  } catch (err) { next(err); }
 };
 
 exports.getMyTickets = async (req, res, next) => {

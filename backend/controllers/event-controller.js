@@ -541,7 +541,7 @@ exports.getEventAnalytics = async (req, res, next) => {
           },
           payout: {
             linkedRazorpayAccountId: null,
-            payoutMode: "auto",
+            payoutMode: "manual",
             paidOutPaise: 0,
             pendingPayoutPaise: 0,
             lastPayoutAt: null
@@ -572,8 +572,8 @@ exports.getEventAnalytics = async (req, res, next) => {
           lastPaymentAt: analytics.revenue?.lastPaymentAt || null
         },
         payout: {
-          linkedRazorpayAccountId: analytics.payout?.linkedRazorpayAccountId || null,
-          payoutMode: analytics.payout?.payoutMode || "auto",
+          linkedRazorpayAccountId: null,
+          payoutMode: "manual",
           paidOutPaise: analytics.payout?.paidOutPaise || 0,
           pendingPayoutPaise: pending,
           lastPayoutAt: analytics.payout?.lastPayoutAt || null

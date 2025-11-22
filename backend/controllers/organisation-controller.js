@@ -16,12 +16,11 @@ const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
 const crypto = require("crypto");
 const sharp = require("sharp");
 const s3 = require("../middleware/s3Client.js");
-const Razorpay = require("razorpay");
-
-const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID,
-  key_secret: process.env.RAZORPAY_KEY_ID_SECRET,
-});
+// const Razorpay = require("razorpay");
+// const razorpay = new Razorpay({
+//   key_id: process.env.RAZORPAY_KEY_ID,
+//   key_secret: process.env.RAZORPAY_KEY_ID_SECRET,
+// });
 
 exports.getMyOrganisation = async (req, res, next) => {
   try {
@@ -95,7 +94,7 @@ exports.createOrganisation = async (req, res, next) => {
       bankAccountName,
       bankAccountNumber,
       bankIfsc,
-      bankAddress,
+      bankAddress
     } = req.body;
 
     const kycFullName = kyc.fullName || req.body["kyc.fullName"];
@@ -109,12 +108,8 @@ exports.createOrganisation = async (req, res, next) => {
       error.statusCode = 422;
       throw error;
     }
-    if (
-      !["image/jpeg", "image/png", "image/webp"].includes(imageFile.mimetype)
-    ) {
-      const error = new Error(
-        "Only .jpg, .png, or .webp images are allowed for logo."
-      );
+    if (!["image/jpeg", "image/png", "image/webp"].includes(imageFile.mimetype)) {
+      const error = new Error("Only .jpg, .png, or .webp images are allowed for logo.");
       error.statusCode = 422;
       throw error;
     }
@@ -124,12 +119,7 @@ exports.createOrganisation = async (req, res, next) => {
       error.statusCode = 422;
       throw error;
     }
-    const allowedDocTypes = [
-      "image/jpeg",
-      "image/png",
-      "image/webp",
-      "application/pdf",
-    ];
+    const allowedDocTypes = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
     if (!allowedDocTypes.includes(docFile.mimetype)) {
       const error = new Error("KYC document must be an image or PDF.");
       error.statusCode = 422;
@@ -148,70 +138,31 @@ exports.createOrganisation = async (req, res, next) => {
     const ifsc = (bankIfsc || "").trim().toUpperCase();
     const addr = (bankAddress || "").trim();
 
-    if (!accName) {
-      const e = new Error("Bank account name is required.");
-      e.statusCode = 422;
-      throw e;
-    }
-    if (!/^[0-9]{9,18}$/.test(accNum)) {
-      const e = new Error("Invalid bank account number.");
-      e.statusCode = 422;
-      throw e;
-    }
-    if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc)) {
-      const e = new Error("Invalid IFSC code.");
-      e.statusCode = 422;
-      throw e;
-    }
-    if (addr.length < 5) {
-      const e = new Error("Bank address is too short.");
-      e.statusCode = 422;
-      throw e;
-    }
+    if (!accName) throw Object.assign(new Error("Bank account name is required."), { statusCode: 422 });
+    if (!/^[0-9]{9,18}$/.test(accNum)) throw Object.assign(new Error("Invalid bank account number."), { statusCode: 422 });
+    if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc)) throw Object.assign(new Error("Invalid IFSC code."), { statusCode: 422 });
+    if (addr.length < 5) throw Object.assign(new Error("Bank address is too short."), { statusCode: 422 });
 
-    const randomName = (bytes = 32) =>
-      crypto.randomBytes(bytes).toString("hex");
+    const randomName = (bytes = 32) => crypto.randomBytes(bytes).toString("hex");
     const imageKey = `org/${userId}/${randomName()}`;
     const docKey = `org/${userId}/kyc/${randomName()}`;
 
     const imageBuffer = await sharp(imageFile.buffer)
       .resize({ height: 200, width: 200, fit: "contain" })
       .toBuffer();
-    await s3.send(
-      new PutObjectCommand({
-        Bucket: process.env.BUCKET_NAME,
-        Key: imageKey,
-        Body: imageBuffer,
-        ContentType: imageFile.mimetype,
-      })
-    );
+    await s3.send(new PutObjectCommand({
+      Bucket: process.env.BUCKET_NAME,
+      Key: imageKey,
+      Body: imageBuffer,
+      ContentType: imageFile.mimetype,
+    }));
 
-    await s3.send(
-      new PutObjectCommand({
-        Bucket: process.env.BUCKET_NAME,
-        Key: docKey,
-        Body: docFile.buffer,
-        ContentType: docFile.mimetype,
-      })
-    );
-
-    const linkedAccount = await razorpay.accounts.create({
-      type: "route",
-      email: contact_email,
-      phone: kycPhoneNumber,
-      legal_business_name: name,
-      business_type: "individual",
-      profile: {
-        category: "education",
-        subcategory: "events",
-        description: description || "Organisation on Campus Vibe",
-      },
-      bank_account: {
-        name: accName,
-        ifsc: ifsc,
-        account_number: accNum,
-      },
-    });
+    await s3.send(new PutObjectCommand({
+      Bucket: process.env.BUCKET_NAME,
+      Key: docKey,
+      Body: docFile.buffer,
+      ContentType: docFile.mimetype,
+    }));
 
     const organisation = new Organisation({
       createdBy: userId,
@@ -225,13 +176,17 @@ exports.createOrganisation = async (req, res, next) => {
         ifsc,
         address: addr,
       },
-      razorpayAccountId: linkedAccount.id,
       kyc: {
         fullName: kycFullName,
         phoneNumber: kycPhoneNumber,
         documentUrl: docKey,
         verified: false,
       },
+      payoutPreferences: {
+        platformFeePercent: 5,
+        minPayoutAmount: 0,
+        settlementMode: "manual",
+      }
     });
 
     await organisation.save();
@@ -382,15 +337,10 @@ exports.updateOrganisationDetail = async (req, res, next) => {
       organisation.kyc.verified = false;
     }
 
-    if (typeof req.body.razorpayAccountId !== "undefined") {
-      delete req.body.razorpayAccountId;
-    }
+    // Ignore any Razorpay account ID updates; payouts are manual.
 
     await organisation.save();
-
-    return res
-      .status(200)
-      .json({ message: "Organisation information updated successfully." });
+    return res.status(200).json({ message: "Organisation information updated successfully." });
   } catch (err) {
     if (!err.statusCode) {
       err.statusCode = 500;

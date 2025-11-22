@@ -409,12 +409,12 @@ exports.getEventAnalytics = async (req, res, next) => {
         $set: {
           registerations: registerationsCount,
           registered_Users: registered_Users,
-          "payout.linkedRazorpayAccountId": organisation.razorpayAccountId,
+          "payout.payoutMode": "manual",
         },
         $setOnInsert: {
           event: eventId,
           "revenue.currency": "INR",
-          "payout.payoutMode": "auto",
+          "payout.payoutMode": "manual",
         },
       },
       { upsert: true, new: true }

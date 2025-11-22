@@ -71,6 +71,7 @@ export const config = {
     "/profile/:path*",
     "/my-events/:path*",
     "/event-analytics/:path*",
+    "/create-organisation",
     "/login",
     "/register",
     "/forgot-password",

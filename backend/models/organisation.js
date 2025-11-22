@@ -5,7 +5,6 @@ const organisationSchema = new Schema(
   {
     createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
 
-    // Organisation info
     name: { type: String, required: true, trim: true, index: true },
     description: { type: String },
     contact_email: {
@@ -17,9 +16,9 @@ const organisationSchema = new Schema(
       match: [/^\S+@\S+\.\S+$/, "Invalid email"],
     },
     imageName: { type: String, required: true, unique: true },
-    razorpayAccountId: { type: String, /* required: true */},
 
-    // Bank details (primary payout)
+    // settlements are manual
+
     bank: {
       accountName: { type: String, required: true, trim: true },
       accountNumber: { type: String, required: true, trim: true },
@@ -33,9 +32,9 @@ const organisationSchema = new Schema(
       address: { type: String, required: true, trim: true },
     },
     payoutPreferences: {
+      settlementMode: { type: String, enum: ["manual"], default: "manual" },
       platformFeePercent: { type: Number, default: 5, min: 0, max: 25 },
       minPayoutAmount: { type: Number, default: 0, min: 0 },
-      settlementMode: { type: String, enum: ["auto"], default: "auto" },
     },
 
     pendingPayoutBalance: { type: Number, default: 0, min: 0 },
