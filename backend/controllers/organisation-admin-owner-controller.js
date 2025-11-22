@@ -408,7 +408,7 @@ exports.getEventAnalytics = async (req, res, next) => {
       {
         $set: {
           registerations: registerationsCount,
-          registered_Users: registered_Users,
+          registered_Users,
           "payout.payoutMode": "manual",
         },
         $setOnInsert: {

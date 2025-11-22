@@ -372,11 +372,35 @@ const EventDetailPage = () => {
             </div>
             <div className={styles.contactSection}>
               <h2 className={styles.sectionTitle}>Organizer Contact</h2>
-              <p>
-                {event.organiser_contact
-                  ? `Contact: ${event.organiser_contact}`
-                  : "Contact details will be provided upon registration"}
-              </p>
+              {organisation || event.organiser_contact ? (
+                <div className={styles.orgContactBlock}>
+                  {organisation?.logoUrl && (
+                    <div className={styles.orgContactLogo}>
+                      <img
+                        src={organisation.logoUrl}
+                        alt={organisation?.name || "Organisation"}
+                      />
+                    </div>
+                  )}
+                  <div className={styles.orgContactInfo}>
+                    <p className={styles.orgContactName}>
+                      {organisation?.name || "Organisation"}
+                    </p>
+                    {organisation?.contact_email && (
+                      <p className={styles.orgContactEmail}>
+                        {organisation.contact_email}
+                      </p>
+                    )}
+                    {event.organiser_contact && (
+                      <p className={styles.orgContactPhone}>
+                        {event.organiser_contact}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <p>Contact details will be provided upon registration</p>
+              )}
             </div>
           </div>
           <div className={styles.rightContent}></div>

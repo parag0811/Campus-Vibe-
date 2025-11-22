@@ -34,13 +34,23 @@ const kycValidate = [
     .matches(/^[0-9+\-\s]{6,15}$/).withMessage("Enter a valid phone number."),
 ];
 
-// Razorpay Account ID required at creation
-const payoutAccountValidate = [
-  body("razorpayAccountId")
-    .notEmpty().withMessage("Razorpay Account ID is required.")
-    .bail()
-    .matches(/^acc_[A-Za-z0-9]+$/).withMessage("Enter a valid Razorpay Account ID (starts with acc_).")
-    .isLength({ min: 10, max: 40 }).withMessage("Invalid Razorpay Account ID length.")
+const bankValidate = [
+  body("bank.accountName")
+    .notEmpty().withMessage("Bank account name required.")
+    .isLength({ min: 2, max: 80 }).withMessage("Account name length invalid.")
+    .trim().escape(),
+  body("bank.accountNumber")
+    .notEmpty().withMessage("Bank account number required.")
+    .matches(/^[0-9A-Z]{6,34}$/).withMessage("Invalid account number.")
+    .trim(),
+  body("bank.ifsc")
+    .notEmpty().withMessage("IFSC required.")
+    .matches(/^[A-Z]{4}0[A-Z0-9]{6}$/).withMessage("Invalid IFSC.")
+    .trim().toUpperCase(),
+  body("bank.address")
+    .notEmpty().withMessage("Bank branch address required.")
+    .isLength({ min: 4, max: 120 }).withMessage("Address length invalid.")
+    .trim().escape()
 ];
 
 // Anyone logged-in can view their org
@@ -50,7 +60,7 @@ router.get(
   organisation_controller.getMyOrganisation
 );
 
-// Create organisation (KYC + Razorpay Account ID)
+// Create organisation (KYC)
 router.post(
   "/organisationAdmin/create-organisation",
   isAuth,
@@ -60,11 +70,11 @@ router.post(
   ]),
   organisationValidate,
   kycValidate,
-  payoutAccountValidate,
+  bankValidate,
   organisation_controller.createOrganisation
 );
 
-// Update org (owner). Razorpay Account ID is NOT editable here.
+// Update org (owner).
 router.put(
   "/organisationAdmin/update-organisation-detail",
   isAuth,
