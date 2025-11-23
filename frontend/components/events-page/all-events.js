@@ -1,25 +1,30 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import styles from "./all-events.module.css";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/common/toast";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL;
+
+if (typeof window !== "undefined" && !API_BASE) {
+  console.warn("NEXT_PUBLIC_API_URL missing. Events search will fail.");
+}
 
 const EventCard = ({ id, image, title, date, time, orgName, promoted }) => {
   const router = useRouter();
   const handleClick = () => router.push(`/events/${id}`);
-
   return (
     <div className={styles.cardWrapper} onClick={handleClick}>
       <div className={styles.posterCard}>
         <div className={styles.posterBox}>
-          <img src={image} alt={title} className={styles.posterImg} />
+          <img src={image} alt={title} className={styles.posterImg} loading="lazy" />
           {promoted && <span className={styles.promotedBadge}>PROMOTED</span>}
         </div>
         <div className={styles.cardContent}>
           <h3 className={styles.eventTitle}>{title}</h3>
-          <p className={styles.eventDate}>{date}, {time}</p>
+          <p className={styles.eventDate}>
+            {date}, {time}
+          </p>
           <p className={styles.eventType}>{orgName || "Organisation"}</p>
         </div>
       </div>
@@ -30,52 +35,131 @@ const EventCard = ({ id, image, title, date, time, orgName, promoted }) => {
 export default function AllEvents() {
   const { toast } = useToast();
   const [events, setEvents] = useState([]);
-  const [visibleEvents, setVisibleEvents] = useState(9);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [limit] = useState(12);
+  const [loading, setLoading] = useState(true);
   const [noEventsMessage, setNoEventsMessage] = useState("");
+  const [error, setError] = useState(null);
 
+  // Filters
+  const [search, setSearch] = useState("");
+  const [mode, setMode] = useState("all"); // online/offline/hybrid/all
+  const [free, setFree] = useState("all"); // free/paid/all
+  const [upcoming, setUpcoming] = useState("all"); // upcoming/past/all
+  const [sort, setSort] = useState("newest"); // newest/popular
+
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  // Debounce search
   useEffect(() => {
-    const fetchEvents = async () => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 350);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const buildQuery = useCallback(
+    (nextPage = 1) => {
+      const params = new URLSearchParams();
+      params.append("page", String(nextPage));
+      params.append("limit", String(limit));
+      params.append("sort", sort);
+      if (debouncedSearch) params.append("q", debouncedSearch);
+      if (mode !== "all") params.append("mode", mode);
+      if (free === "free") params.append("free", "true");
+      else if (free === "paid") params.append("free", "false");
+      if (upcoming === "upcoming") params.append("upcoming", "true");
+      else if (upcoming === "past") params.append("upcoming", "false");
+      return params.toString();
+    },
+    [limit, sort, debouncedSearch, mode, free, upcoming]
+  );
+
+  const mapEvents = (list) => {
+    const fmt = (d, opts) => {
       try {
-        setNoEventsMessage("");
-        const response = await fetch(`${API_BASE}/events`);
-        const data = await response.json();
-
-        if (!response.ok) {
-          if (response.status === 404 && data.message) {
-            setEvents([]);
-            setNoEventsMessage(data.message);
-            return;
-          }
-          throw new Error(data.message || "Unable to load events. Please try again later.");
-        }
-
-        const list = Array.isArray(data?.events) ? data.events : [];
-        const fmt = (d, opts) => new Date(d).toLocaleString(undefined, opts);
-
-        const mapped = list.map((ev) => {
-          const start = ev.start_date || ev.createdAt || Date.now();
-          return {
-            id: ev._id,
-            image: ev.imageUrl || "/default-event.jpg",
-            title: ev.title || "Untitled event",
-            date: fmt(start, { weekday: "long", month: "long", day: "numeric" }),
-            time: fmt(start, { hour: "numeric", minute: "2-digit" }),
-            orgName: ev?.organisation?.name || ev?.created_by_organisation?.name || "Organisation",
-            promoted: !!ev.promoted
-          };
-        });
-
-        setEvents(mapped);
-      } catch (err) {
-        setNoEventsMessage("");
-        toast.error(err.message || "Unable to load events. Please try again later.");
+        return new Date(d).toLocaleString(undefined, opts);
+      } catch {
+        return "";
       }
     };
+    return list.map((ev) => {
+      const start = ev.start_date || ev.createdAt || Date.now();
+      return {
+        id: ev._id,
+        image: ev.imageUrl || "/default-event.jpg",
+        title: ev.title || "Untitled event",
+        date: fmt(start, { weekday: "long", month: "long", day: "numeric" }),
+        time: fmt(start, { hour: "numeric", minute: "2-digit" }),
+        orgName: ev?.organisation?.name || ev?.created_by_organisation?.name || "Organisation",
+        promoted: !!ev.promoted
+      };
+    });
+  };
 
-    fetchEvents();
-  }, [toast]);
+  const fetchEvents = useCallback(
+    async (reset = false) => {
+      if (!API_BASE) {
+        setError("API not configured.");
+        setLoading(false);
+        return;
+      }
+      try {
+        setLoading(true);
+        setError(null);
+        if (reset) {
+          setPage(1);
+          setEvents([]);
+        }
+        const q = buildQuery(reset ? 1 : page);
+        const res = await fetch(`${API_BASE}/search?${q}`, {
+          headers: { "Cache-Control": "no-cache" }
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          if (res.status === 404) {
+            setEvents([]);
+            setNoEventsMessage(data.message || "No events found.");
+            setTotal(0);
+            return;
+          }
+          throw new Error(data.message || "Failed to load events.");
+        }
+        const list = Array.isArray(data?.data?.events)
+          ? data.data.events
+          : Array.isArray(data?.events)
+          ? data.events
+          : [];
+        const mapped = mapEvents(list);
+        setTotal(data?.data?.total || data?.total || mapped.length);
+        setNoEventsMessage(mapped.length === 0 ? "No events found." : "");
+        setEvents((prev) => (reset ? mapped : [...prev, ...mapped]));
+      } catch (e) {
+        setError(e.message || "Network error.");
+        if (reset) setEvents([]);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [API_BASE, buildQuery, page]
+  );
 
-  const loadMore = () => setVisibleEvents((prev) => prev + 6);
+  // Initial & filter-triggered fetch
+  useEffect(() => {
+    // Reset page when filters change
+    setPage(1);
+    fetchEvents(true);
+  }, [debouncedSearch, mode, free, upcoming, sort, fetchEvents]);
+
+  // Load more
+  const loadMore = () => {
+    const next = page + 1;
+    setPage(next);
+  };
+
+  // Fetch when page increments (not from filter reset)
+  useEffect(() => {
+    if (page > 1) fetchEvents(false);
+  }, [page, fetchEvents]);
 
   return (
     <div className={styles.container}>
@@ -85,24 +169,110 @@ export default function AllEvents() {
         </h2>
       </div>
 
-      <div className={styles.eventsGrid}>
-        {noEventsMessage && <div className={styles.noEventsMessage}>{noEventsMessage}</div>}
-        {events.length === 0 && !noEventsMessage && (
-          <div className={styles.noEventsMessage}>No events found.</div>
-        )}
+      <div className={styles.filterBar}>
+        <input
+          type="text"
+          placeholder="Search events..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className={styles.searchInput}
+        />
+        <select
+          value={mode}
+          onChange={(e) => setMode(e.target.value)}
+          className={styles.select}
+          aria-label="Mode"
+        >
+          <option value="all">All Modes</option>
+          <option value="online">Online</option>
+          <option value="offline">Offline</option>
+          <option value="hybrid">Hybrid</option>
+        </select>
+        <select
+          value={free}
+          onChange={(e) => setFree(e.target.value)}
+          className={styles.select}
+          aria-label="Price"
+        >
+          <option value="all">All Prices</option>
+          <option value="free">Free</option>
+            <option value="paid">Paid</option>
+        </select>
+        <select
+          value={upcoming}
+          onChange={(e) => setUpcoming(e.target.value)}
+          className={styles.select}
+          aria-label="Time"
+        >
+          <option value="all">All Dates</option>
+          <option value="upcoming">Upcoming</option>
+          <option value="past">Past</option>
+        </select>
+        <select
+          value={sort}
+          onChange={(e) => setSort(e.target.value)}
+          className={styles.select}
+          aria-label="Sort"
+        >
+          <option value="newest">Newest</option>
+          <option value="popular">Popular</option>
+        </select>
+        <button
+          type="button"
+          className={styles.resetBtn}
+          onClick={() => {
+            setSearch("");
+            setMode("all");
+            setFree("all");
+            setUpcoming("all");
+            setSort("newest");
+          }}
+          disabled={
+            !search &&
+            mode === "all" &&
+            free === "all" &&
+            upcoming === "all" &&
+            sort === "newest"
+          }
+        >
+          Reset
+        </button>
+      </div>
 
-        {events.slice(0, visibleEvents).map((event) => (
+      {error && (
+        <div className={styles.errorBanner} role="alert">
+          {error}
+          <button
+            className={styles.retryInline}
+            onClick={() => fetchEvents(true)}
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
+      <div className={styles.eventsGrid}>
+        {noEventsMessage && !loading && (
+          <div className={styles.noEventsMessage}>{noEventsMessage}</div>
+        )}
+        {events.length === 0 && !noEventsMessage && loading && (
+          <div className={styles.noEventsMessage}>Loading events...</div>
+        )}
+        {events.map((event) => (
           <EventCard key={event.id} {...event} />
         ))}
       </div>
 
-      {events.length > visibleEvents && (
-        <div className={styles.paginationContainer}>
+      <div className={styles.paginationContainer}>
+        {loading && events.length > 0 && (
+          <div className={styles.loadingMore}>Loading...</div>
+        )}
+        {!loading && events.length < total && events.length > 0 && (
           <button className={styles.loadMoreButton} onClick={loadMore}>
             Load More
           </button>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
