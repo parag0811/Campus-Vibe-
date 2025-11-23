@@ -59,14 +59,27 @@ exports.sendVerificationOTP = async (req, res) => {
   try {
     const email = (req.body.email || "").trim().toLowerCase();
     const user = email ? await User.findOne({ email }) : null;
-    if (!user) return res.status(404).json({ success: false, message: "User not found." });
-    if (user.isVerified) return res.status(200).json({ success: true, message: "E-mail is already verified." });
+    if (!user)
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found." });
+    if (user.isVerified)
+      return res
+        .status(200)
+        .json({ success: true, message: "E-mail is already verified." });
 
     const now = Date.now();
-    const last = user.lastOtpSentAt ? new Date(user.lastOtpSentAt).getTime() : 0;
+    const last = user.lastOtpSentAt
+      ? new Date(user.lastOtpSentAt).getTime()
+      : 0;
     if (now - last < 60_000) {
       const wait = Math.ceil((60_000 - (now - last)) / 1000);
-      return res.status(429).json({ success: false, message: `Please wait ${wait} seconds before requesting OTP again.` });
+      return res
+        .status(429)
+        .json({
+          success: false,
+          message: `Please wait ${wait} seconds before requesting OTP again.`,
+        });
     }
 
     const otp = String(crypto.randomInt(100000, 1000000));
@@ -81,7 +94,10 @@ exports.sendVerificationOTP = async (req, res) => {
       `Your Campus Vibe verification code is ${otp}.\nThis code expires in 15 minutes.`
     );
 
-    return res.json({ success: true, message: "Verification OTP sent to email." });
+    return res.json({
+      success: true,
+      message: "Verification OTP sent to email.",
+    });
   } catch (error) {
     console.error("sendVerificationOTP error:", error);
     return res.status(500).json({ success: false, message: "Server error" });
@@ -93,14 +109,27 @@ exports.resendVerificationOTP = async (req, res) => {
   try {
     const email = (req.body.email || "").trim().toLowerCase();
     const user = email ? await User.findOne({ email }) : null;
-    if (!user) return res.status(404).json({ success: false, message: "User not found." });
-    if (user.isVerified) return res.status(200).json({ success: true, message: "E-mail is already verified." });
+    if (!user)
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found." });
+    if (user.isVerified)
+      return res
+        .status(200)
+        .json({ success: true, message: "E-mail is already verified." });
 
     const now = Date.now();
-    const last = user.lastOtpSentAt ? new Date(user.lastOtpSentAt).getTime() : 0;
+    const last = user.lastOtpSentAt
+      ? new Date(user.lastOtpSentAt).getTime()
+      : 0;
     if (now - last < 60_000) {
       const wait = Math.ceil((60_000 - (now - last)) / 1000);
-      return res.status(429).json({ success: false, message: `Please wait ${wait} seconds before resending OTP.` });
+      return res
+        .status(429)
+        .json({
+          success: false,
+          message: `Please wait ${wait} seconds before resending OTP.`,
+        });
     }
 
     const otp = String(crypto.randomInt(100000, 1000000));
@@ -149,20 +178,16 @@ exports.verifyOTP = async (req, res) => {
         .json({ success: true, message: "E-mail already verified" });
     }
     if (!user.emailVerificationOTP || !user.emailVerificationExpires) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "OTP not requested or already used.",
-        });
+      return res.status(400).json({
+        success: false,
+        message: "OTP not requested or already used.",
+      });
     }
     if (Date.now() > new Date(user.emailVerificationExpires).getTime()) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "OTP expired. Please request a new one.",
-        });
+      return res.status(400).json({
+        success: false,
+        message: "OTP expired. Please request a new one.",
+      });
     }
 
     const isMatch = await bcrypt.compare(otp, user.emailVerificationOTP);
@@ -173,7 +198,7 @@ exports.verifyOTP = async (req, res) => {
     user.isVerified = true;
     user.emailVerificationOTP = undefined;
     user.emailVerificationExpires = undefined;
-    user.lastOtpSentAt = undefined; 
+    user.lastOtpSentAt = undefined;
     await user.save();
 
     return res
@@ -249,8 +274,8 @@ exports.makeProfile = async (req, res, next) => {
   const age = req.body.age;
   const college_name = req.body.college_name;
   const college_id = req.body.college_id;
-  const college_department = req.body.college_department
-  const college_year = req.body.college_year
+  const college_department = req.body.college_department;
+  const college_year = req.body.college_year;
 
   try {
     const errors = validationResult(req);
@@ -301,10 +326,32 @@ exports.getProfile = async (req, res, next) => {
         .json({ success: false, message: "Please login to get user details." });
     }
 
-    const { _id, name, age, email, college_name, college_id, college_department, college_year, role, isVerified } = user;
+    const {
+      _id,
+      name,
+      age,
+      email,
+      college_name,
+      college_id,
+      college_department,
+      college_year,
+      role,
+      isVerified,
+    } = user;
     return res.status(200).json({
       success: true,
-      data: { _id, name, age, email, college_name, college_id, college_department, college_year, role, isVerified },
+      data: {
+        _id,
+        name,
+        age,
+        email,
+        college_name,
+        college_id,
+        college_department,
+        college_year,
+        role,
+        isVerified,
+      },
     });
   } catch (err) {
     if (!err.statusCode) {
@@ -345,7 +392,8 @@ exports.updateProfile = async (req, res, next) => {
     if (typeof age !== "undefined") user.age = age;
     if (typeof college_id !== "undefined") user.college_id = college_id;
     if (typeof college_name !== "undefined") user.college_name = college_name;
-    if (typeof college_department !== "undefined") user.college_department = college_department;
+    if (typeof college_department !== "undefined")
+      user.college_department = college_department;
     if (typeof college_year !== "undefined") user.college_year = college_year;
 
     const hasAllStudentFields =
@@ -381,7 +429,9 @@ exports.forgotPassword = async (req, res) => {
   try {
     const user = await User.findOne({ email });
     if (!user)
-      return res.status(404).json({ success: false, message: "User not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
 
     // Generate token
     const token = crypto.randomBytes(32).toString("hex");
@@ -402,7 +452,9 @@ exports.forgotPassword = async (req, res) => {
       `Reset your password using this link (valid 10 minutes): ${resetURL}`
     );
 
-    return res.status(200).json({ success: true, message: "Password reset link sent to email" });
+    return res
+      .status(200)
+      .json({ success: true, message: "Password reset link sent to email" });
   } catch (err) {
     res.status(500).json({ success: false, message: "Server error" });
   }
@@ -461,7 +513,9 @@ exports.resetPassword = async (req, res, next) => {
 
 exports.checkLogin = async (req, res, next) => {
   try {
-    const user = await User.findById(req.userId).select("role isVerified profileCompleted email");
+    const user = await User.findById(req.userId).select(
+      "role isVerified profileCompleted email"
+    );
     if (!user) {
       return res.status(401).json({ loggedIn: false });
     }

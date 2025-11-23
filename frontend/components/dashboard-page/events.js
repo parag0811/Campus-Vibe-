@@ -4,12 +4,15 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useToast } from "@/components/common/toast";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL;
+
+if (typeof window !== "undefined" && !API_BASE) {
+  console.warn("NEXT_PUBLIC_API_URL missing. Events dashboard will not load.");
+}
 
 const EventsDashboard = () => {
   const router = useRouter();
   const { toast } = useToast();
-
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [orgId, setOrgId] = useState(null);
@@ -17,13 +20,16 @@ const EventsDashboard = () => {
 
   useEffect(() => {
     const ac = new AbortController();
-
-    const fetchEvents = async () => {
+    const load = async () => {
+      if (!API_BASE) {
+        setError("API base not configured.");
+        setLoading(false);
+        return;
+      }
       try {
         setLoading(true);
         setError(null);
 
-        // 1) Check membership (owner OR assigned admin)
         const probeRes = await fetch(`${API_BASE}/org-admin/organisation/is-member`, {
           credentials: "include",
           signal: ac.signal,
@@ -36,14 +42,12 @@ const EventsDashboard = () => {
         }
         const probe = await probeRes.json();
         if (!probeRes.ok || !probe?.orgAdmin || !probe?.organisationId) {
-          // not owner/assigned admin
           router.push("/create-organisation");
           return;
         }
         const organisationId = String(probe.organisationId);
         setOrgId(organisationId);
 
-        // 2) Fetch events for organisation (org-admin route)
         const eventsRes = await fetch(
           `${API_BASE}/org-admin/organisation/${organisationId}/created-events`,
           { credentials: "include", signal: ac.signal, headers: { "Cache-Control": "no-cache" } }
@@ -54,50 +58,40 @@ const EventsDashboard = () => {
           router.replace("/login");
           return;
         }
-
-        // 404 is a valid "no events" state
-        if (eventsRes.status === 404) { setEvents([]); return; }
-
+        if (eventsRes.status === 404) {
+          setEvents([]);
+          return;
+        }
         if (!eventsRes.ok) {
           const data = await eventsRes.json().catch(() => ({}));
-          throw new Error(data?.message || "Failed to fetch events.");
+            throw new Error(data?.message || "Failed to fetch events.");
         }
-
         const data = await eventsRes.json();
         setEvents(Array.isArray(data.events) ? data.events : []);
       } catch (err) {
         if (ac.signal.aborted) return;
-        setError(err.message || "Something went wrong.");
+        setError(err.message || "Failed to load events.");
         setEvents([]);
         toast.error(err.message || "Failed to load events");
       } finally {
         if (!ac.signal.aborted) setLoading(false);
       }
     };
-
-    fetchEvents();
+    load();
     return () => ac.abort();
   }, [router, toast]);
 
-  const handleCreateEvent = () => {
-    router.push("/admin/events/create-event");
-  };
-
-  const handleEditEvent = (eventId) => {
-    router.push(`/admin/events/create-event?edit=${eventId}`);
-  };
-
-  const handleViewAnalytics = (eventId) => {
-    router.push(`/admin/events/event-analytics?event=${eventId}&org=${orgId}`);
-  };
+  const handleCreateEvent = () => router.push("/admin/events/create-event");
+  const handleEditEvent = (id) => router.push(`/admin/events/create-event?edit=${id}`);
+  const handleViewAnalytics = (id) =>
+    router.push(`/admin/events/event-analytics?event=${id}&org=${orgId}`);
 
   return (
     <div className={styles.container}>
-      {/* Hero Section */}
       <div
         className={styles.heroSection}
         style={{
-          backgroundImage: `url("/eventDashboardBg.svg")`,
+          backgroundImage: 'url("/eventDashboardBg.svg")',
           backgroundSize: "cover",
           backgroundPosition: "center",
           backgroundRepeat: "no-repeat",
@@ -126,7 +120,6 @@ const EventsDashboard = () => {
         </div>
       </div>
 
-      {/* Your Events Section */}
       <div className={styles.eventsSection}>
         <h2 className={styles.sectionTitle}>Your Events</h2>
         {loading ? (
@@ -142,8 +135,9 @@ const EventsDashboard = () => {
                 <div className={styles.eventImageContainer}>
                   <img
                     src={event.imageUrl || "/default-event.jpg"}
-                    alt={event.title}
+                    alt={event.title || "Event poster"}
                     className={styles.eventImage}
+                    loading="lazy"
                   />
                 </div>
                 <div className={styles.eventContent}>

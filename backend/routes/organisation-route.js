@@ -53,6 +53,35 @@ const bankValidate = [
     .trim().escape()
 ];
 
+const kycUpdateValidate = [
+  body("kyc.fullName")
+    .optional()
+    .isLength({ min: 2, max: 80 }).withMessage("Full name must be 2-80 chars.")
+    .trim().escape(),
+  body("kyc.phoneNumber")
+    .optional()
+    .matches(/^[0-9+\-\s]{6,15}$/).withMessage("Enter a valid phone number.")
+];
+
+const bankUpdateValidate = [
+  body("bank.accountName")
+    .optional()
+    .isLength({ min: 2, max: 80 }).withMessage("Account name length invalid.")
+    .trim().escape(),
+  body("bank.accountNumber")
+    .optional()
+    .matches(/^[0-9A-Z]{6,34}$/).withMessage("Invalid account number.")
+    .trim(),
+  body("bank.ifsc")
+    .optional()
+    .matches(/^[A-Z]{4}0[A-Z0-9]{6}$/).withMessage("Invalid IFSC.")
+    .trim().toUpperCase(),
+  body("bank.address")
+    .optional()
+    .isLength({ min: 4, max: 120 }).withMessage("Address length invalid.")
+    .trim().escape()
+];
+
 // Anyone logged-in can view their org
 router.get(
   "/organisationAdmin/my-organisation",
@@ -84,6 +113,8 @@ router.put(
     { name: "document", maxCount: 1 },
   ]),
   organisationValidate,
+  kycUpdateValidate,
+  bankUpdateValidate,
   organisation_controller.updateOrganisationDetail
 );
 

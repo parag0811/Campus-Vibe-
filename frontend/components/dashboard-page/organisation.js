@@ -2,21 +2,24 @@
 import { useEffect, useRef, useState } from "react";
 import styles from "./organisation.module.css";
 import { useToast } from "@/components/common/toast";
+import { useRouter } from "next/navigation";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL;
 
 const OrganisationPage = () => {
   const { toast } = useToast();
+  const router = useRouter();
 
   const [formData, setFormData] = useState({
-    title: "",
+    name: "",
     description: "",
-    email: "",
+    contact_email: "",
     bankAccountName: "",
     bankAccountNumber: "",
     bankIfsc: "",
     bankAddress: "",
   });
+
   const [profileImage, setProfileImage] = useState(null);
   const [kycDoc, setKycDoc] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
@@ -29,72 +32,139 @@ const OrganisationPage = () => {
   const [validationErrors, setValidationErrors] = useState({});
   const [deleting, setDeleting] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [formErrorSummary, setFormErrorSummary] = useState("");
+
+  const fieldRules = {
+    name: (v) =>
+      !v.trim()
+        ? "Name required."
+        : v.trim().length < 6
+        ? "Name must be ≥ 6 chars."
+        : v.trim().length > 60
+        ? "Name must be ≤ 60 chars."
+        : null,
+    description: (v) =>
+      !v.trim()
+        ? "Description required."
+        : v.trim().length < 6
+        ? "Description must be ≥ 6 chars."
+        : v.trim().length > 100
+        ? "Description must be ≤ 100 chars."
+        : null,
+    contact_email: (v) =>
+      !v.trim()
+        ? "Email required."
+        : !/^\S+@\S+\.\S+$/.test(v.trim())
+        ? "Enter valid email."
+        : null,
+    bankAccountName: (v) =>
+      !v.trim()
+        ? "Account name required."
+        : v.trim().length < 2
+        ? "Min 2 chars."
+        : v.trim().length > 80
+        ? "Max 80 chars."
+        : null,
+    bankAccountNumber: (v) =>
+      !v.trim()
+        ? "Account number required."
+        : !/^[0-9A-Z]{6,34}$/.test(v.trim())
+        ? "Invalid account number."
+        : null,
+    bankIfsc: (v) =>
+      !v.trim()
+        ? "IFSC required."
+        : !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(v.trim().toUpperCase())
+        ? "Invalid IFSC."
+        : null,
+    bankAddress: (v) =>
+      !v.trim()
+        ? "Bank address required."
+        : v.trim().length < 4
+        ? "Min 4 chars."
+        : v.trim().length > 120
+        ? "Max 120 chars."
+        : null,
+  };
+
+  const validateClient = () => {
+    const errs = {};
+    Object.entries(fieldRules).forEach(([field, ruleFn]) => {
+      const msg = ruleFn(formData[field] || "");
+      if (msg) errs[field] = msg;
+    });
+    return errs;
+  };
 
   useEffect(() => {
-    let aborted = false;
+    if (!API_BASE) {
+      toast.error("API base not configured.");
+      setLoading(false);
+      return;
+    }
+    const ac = new AbortController();
     (async () => {
       try {
         const res = await fetch(`${API_BASE}/org/organisationAdmin/my-organisation`, {
           credentials: "include",
           headers: { "Cache-Control": "no-cache" },
+          signal: ac.signal,
         });
-
         if (res.status === 401) {
-          toast.info("Please login to manage your organisation.");
+          toast.info("Login required.");
+          router.replace("/login");
           return;
         }
-
         const data = await res.json();
-        if (aborted) return;
-
-        if (res.ok && data?.hasOrganisation && data.organisation) {
-          setHasOrganisation(true);
-          setFormData({
-            title: data.organisation.name || "",
+        if (!res.ok || !data?.hasOrganisation || !data.organisation) {
+          setHasOrganisation(false);
+          return;
+        }
+        setHasOrganisation(true);
+        setFormData({
+          name: data.organisation.name || "",
             description: data.organisation.description || "",
-            email: data.organisation.contact_email || "",
+            contact_email: data.organisation.contact_email || "",
             bankAccountName: data.organisation.bank?.accountName || "",
             bankAccountNumber: data.organisation.bank?.accountNumber || "",
             bankIfsc: data.organisation.bank?.ifsc || "",
             bankAddress: data.organisation.bank?.address || "",
-          });
-          if (data.imageUrl) setImagePreview(data.imageUrl);
-        } else {
-          setHasOrganisation(false);
-        }
-      } catch (err) {
-        console.error(err);
-        toast.error("Failed to load organisation");
+        });
+        if (data.imageUrl) setImagePreview(data.imageUrl);
+      } catch (e) {
+        if (e.name !== "AbortError") toast.error("Failed to load organisation.");
       } finally {
-        if (!aborted) setLoading(false);
+        if (!ac.signal.aborted) setLoading(false);
       }
     })();
-    return () => { aborted = true; };
-  }, [toast]);
+    return () => ac.abort();
+  }, [toast, router]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData((p) => ({ ...p, [name]: value }));
-    setValidationErrors((p) => ({ ...p, [name]: null }));
+    // live per-field validation
+    if (fieldRules[name]) {
+      const msg = fieldRules[name](value);
+      setValidationErrors((prev) => ({ ...prev, [name]: msg }));
+    }
   };
 
   const handleImageChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("Image must be less than 5MB");
+    if (!/^image\//.test(file.type)) {
+      toast.error("Invalid image.");
       return;
     }
-    if (!file.type.startsWith("image/")) {
-      toast.error("Please select a valid image");
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image must be <5MB.");
       return;
     }
     setProfileImage(file);
     const reader = new FileReader();
     reader.onload = (ev) => setImagePreview(ev.target.result);
     reader.readAsDataURL(file);
-    toast.success("Image selected");
   };
 
   const handleKycChange = (e) => {
@@ -102,86 +172,101 @@ const OrganisationPage = () => {
     if (!file) return;
     const allowed = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
     if (!allowed.includes(file.type)) {
-      toast.error("KYC document must be an image or PDF");
+      toast.error("KYC must be image/PDF.");
       return;
     }
     setKycDoc(file);
-    toast.success("KYC document selected");
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setValidationErrors({});
-    if (!hasOrganisation) {
-      toast.info("Create an organisation first");
+    setFormErrorSummary("");
+    // Client-side check first
+    const clientErrs = validateClient();
+    if (Object.keys(clientErrs).length) {
+      setValidationErrors(clientErrs);
+      setFormErrorSummary("Fix highlighted fields before submitting.");
       return;
     }
-
-    const form = new FormData();
-    form.append("name", formData.title);
-    form.append("description", formData.description);
-    form.append("contact_email", formData.email);
-    if (formData.bankAccountName) form.append("bankAccountName", formData.bankAccountName);
-    if (formData.bankAccountNumber) form.append("bankAccountNumber", formData.bankAccountNumber);
-    if (formData.bankIfsc) form.append("bankIfsc", formData.bankIfsc.toUpperCase());
-    if (formData.bankAddress) form.append("bankAddress", formData.bankAddress);
-    if (profileImage) form.append("image", profileImage);
-    if (kycDoc) form.append("document", kycDoc);
+    const fd = new FormData();
+    fd.append("name", formData.name);
+    fd.append("description", formData.description);
+    fd.append("contact_email", formData.contact_email);
+    if (formData.bankAccountName) fd.append("bank.accountName", formData.bankAccountName);
+    if (formData.bankAccountNumber) fd.append("bank.accountNumber", formData.bankAccountNumber);
+    if (formData.bankIfsc) fd.append("bank.ifsc", formData.bankIfsc.toUpperCase());
+    if (formData.bankAddress) fd.append("bank.address", formData.bankAddress);
+    if (profileImage) fd.append("image", profileImage);
+    if (kycDoc) fd.append("document", kycDoc);
 
     try {
       setSaving(true);
-      const res = await fetch(
-        `${API_BASE}/org/organisationAdmin/update-organisation-detail`,
-        {
-          method: "PUT",
-          credentials: "include",
-          body: form,
-        }
-      );
+      const res = await fetch(`${API_BASE}/org/organisationAdmin/update-organisation-detail`, {
+        method: "PUT",
+        credentials: "include",
+        body: fd,
+      });
       const data = await res.json();
-
+      if (res.status === 401) {
+        toast.info("Login required.");
+        router.replace("/login");
+        return;
+      }
       if (res.ok) {
-        toast.success(data.message || "Organisation updated");
+        toast.success(data.message || "Updated.");
       } else if (res.status === 422 && Array.isArray(data.data)) {
         const map = {};
         data.data.forEach((err) => {
-          if (err.path && !map[err.path]) map[err.path] = err.msg;
+            if (err.path) {
+              // map backend dot paths to our field names
+              const key =
+                err.path === "bank.accountName"
+                  ? "bankAccountName"
+                  : err.path === "bank.accountNumber"
+                  ? "bankAccountNumber"
+                  : err.path === "bank.ifsc"
+                  ? "bankIfsc"
+                  : err.path === "bank.address"
+                  ? "bankAddress"
+                  : err.path;
+              if (!map[key]) map[key] = err.msg;
+            }
         });
         setValidationErrors(map);
-        toast.error(data.message || "Validation failed");
+        setFormErrorSummary("Validation failed on server.");
+        toast.error("Validation failed.");
       } else {
-        toast.error(data.message || "Update failed");
+        const msg = data.message || "Update failed.";
+        setFormErrorSummary(msg);
+        toast.error(msg);
       }
-    } catch (err) {
-      console.error(err);
-      toast.error("Network error");
+    } catch {
+      setFormErrorSummary("Network error.");
+      toast.error("Network error.");
     } finally {
       setSaving(false);
     }
   };
 
   const handleDeleteOrganisation = async () => {
-    if (!hasOrganisation) return;
-    if (!window.confirm("Delete your organisation? This cannot be undone."))
-      return;
-
-    setDeleting(true);
+    if (!hasOrganisation || deleting) return;
+    if (!API_BASE) return;
+    if (!window.confirm("Delete organisation permanently?")) return;
     try {
-      const res = await fetch(
-        `${API_BASE}/org/organisationAdmin/delete-organisation`,
-        {
-          method: "DELETE",
-          credentials: "include",
-        }
-      );
+      setDeleting(true);
+      const res = await fetch(`${API_BASE}/org/organisationAdmin/delete-organisation`, {
+        method: "DELETE",
+        credentials: "include",
+      });
       const data = await res.json();
       if (res.ok) {
-        toast.success(data.message || "Organisation deleted");
+        toast.success(data.message || "Deleted.");
         setHasOrganisation(false);
         setFormData({
-          title: "",
+          name: "",
           description: "",
-          email: "",
+          contact_email: "",
           bankAccountName: "",
           bankAccountNumber: "",
           bankIfsc: "",
@@ -189,10 +274,10 @@ const OrganisationPage = () => {
         });
         setImagePreview(null);
       } else {
-        toast.error(data.message || "Failed to delete");
+        toast.error(data.message || "Delete failed.");
       }
-    } catch (err) {
-      toast.error("Network error");
+    } catch {
+      toast.error("Network error.");
     } finally {
       setDeleting(false);
     }
@@ -201,228 +286,177 @@ const OrganisationPage = () => {
   if (loading) {
     return (
       <div className={styles.container}>
-        <div className={styles.loadingWrapper}>
-          <p>Loading...</p>
-        </div>
+        <p>Loading...</p>
+      </div>
+    );
+  }
+
+  if (!hasOrganisation) {
+    return (
+      <div className={styles.container}>
+        <h1 className={styles.title}>No Organisation</h1>
+        <p>You need to create an organisation to manage its details.</p>
+        <a href="/create-organisation" className={styles.submitButton}>
+          Create Organisation
+        </a>
       </div>
     );
   }
 
   return (
     <div className={styles.container}>
-      <h1 className={styles.title}>
-        {hasOrganisation ? "Update your Organisation" : "No Organisation yet"}
-      </h1>
-
-      {!hasOrganisation ? (
-        <div className={styles.emptyState}>
-          <p className={styles.emptyText}>
-            You haven’t created an organisation yet. Create one to start managing
-            events and admins.
-          </p>
-          <a href="/create-organisation" className={styles.emptyButton}>
-            Create Organisation
-          </a>
-        </div>
-      ) : (
-        <div className={styles.formCard}>
-          <div className={styles.formWrapper}>
-            <form onSubmit={handleSubmit} className={styles.form}>
-              {/* Logo controls */}
-              <input
-                ref={imageInputRef}
-                type="file"
-                id="profileImage"
-                accept="image/*"
-                onChange={handleImageChange}
-                className={styles.imageInput}
-              />
-              <div className={styles.imageControls}>
-                <button
-                  type="button"
-                  className={`${styles.btnTiny} ${styles.btnTinyNeutral}`}
-                  onClick={() => imageInputRef.current?.click()}
-                >
-                  Change logo
-                </button>
-              </div>
-              <div className={styles.imagePickerSection}>
-                <div className={styles.imagePickerWrapper}>
-                  <div className={styles.imageLabel} aria-label="Organisation logo">
-                    {imagePreview ? (
-                      <img
-                        src={imagePreview}
-                        alt="Org logo"
-                        className={styles.previewImage}
-                      />
-                    ) : null}
-                  </div>
-                </div>
-              </div>
-
-              <div className={styles.formGroup}>
-                <label htmlFor="title" className={styles.label}>
-                  Organisation Title
-                </label>
-                <input
-                  type="text"
-                  id="title"
-                  name="title"
-                  value={formData.title}
-                  onChange={handleInputChange}
-                  className={styles.input}
-                />
-                {validationErrors.name && (
-                  <p className={styles.errorText}>{validationErrors.name}</p>
-                )}
-              </div>
-
-              <div className={styles.formGroup}>
-                <label htmlFor="description" className={styles.label}>
-                  Description
-                </label>
-                <textarea
-                  id="description"
-                  name="description"
-                  value={formData.description}
-                  onChange={handleInputChange}
-                  className={styles.textarea}
-                  rows={4}
-                />
-                {validationErrors.description && (
-                  <p className={styles.errorText}>
-                    {validationErrors.description}
-                  </p>
-                )}
-              </div>
-
-              <div className={styles.formGroup}>
-                <label htmlFor="email" className={styles.label}>
-                  Email ID
-                </label>
-                <input
-                  type="email"
-                  id="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleInputChange}
-                  className={styles.input}
-                />
-                {validationErrors.contact_email && (
-                  <p className={styles.errorText}>
-                    {validationErrors.contact_email}
-                  </p>
-                )}
-              </div>
-
-              <h3 className={styles.sectionTitle}>Bank Details</h3>
-              <div className={styles.formGroup}>
-                <label htmlFor="bankAccountName" className={styles.label}>
-                  Account Name
-                </label>
-                <input
-                  type="text"
-                  id="bankAccountName"
-                  name="bankAccountName"
-                  value={formData.bankAccountName}
-                  onChange={handleInputChange}
-                  className={styles.input}
-                />
-                {validationErrors.bankAccountName && (
-                  <p className={styles.errorText}>{validationErrors.bankAccountName}</p>
-                )}
-              </div>
-
-              <div className={styles.formGroup}>
-                <label htmlFor="bankAccountNumber" className={styles.label}>
-                  Account Number
-                </label>
-                <input
-                  type="text"
-                  id="bankAccountNumber"
-                  name="bankAccountNumber"
-                  value={formData.bankAccountNumber}
-                  onChange={handleInputChange}
-                  className={styles.input}
-                />
-                {validationErrors.bankAccountNumber && (
-                  <p className={styles.errorText}>{validationErrors.bankAccountNumber}</p>
-                )}
-              </div>
-
-              <div className={styles.formGroup}>
-                <label htmlFor="bankIfsc" className={styles.label}>
-                  IFSC
-                </label>
-                <input
-                  type="text"
-                  id="bankIfsc"
-                  name="bankIfsc"
-                  value={formData.bankIfsc}
-                  onChange={handleInputChange}
-                  className={styles.input}
-                />
-                {validationErrors.bankIfsc && (
-                  <p className={styles.errorText}>{validationErrors.bankIfsc}</p>
-                )}
-              </div>
-
-              <div className={styles.formGroup}>
-                <label htmlFor="bankAddress" className={styles.label}>
-                  Bank Address
-                </label>
-                <input
-                  type="text"
-                  id="bankAddress"
-                  name="bankAddress"
-                  value={formData.bankAddress}
-                  onChange={handleInputChange}
-                  className={styles.input}
-                />
-                {validationErrors.bankAddress && (
-                  <p className={styles.errorText}>{validationErrors.bankAddress}</p>
-                )}
-              </div>
-
-              <h3 className={styles.sectionTitle}>KYC Document (optional update)</h3>
-              <input
-                ref={kycInputRef}
-                type="file"
-                id="kycDoc"
-                accept="image/*,application/pdf"
-                onChange={handleKycChange}
-                className={styles.fileInputHidden}
-              />
-              <div className={styles.fileRow}>
-                <button
-                  type="button"
-                  className={`${styles.btnTiny} ${styles.btnTinyPrimary}`}
-                  onClick={() => kycInputRef.current?.click()}
-                >
-                  Upload KYC
-                </button>
-                <span className={styles.fileName}>
-                  {kycDoc?.name || "No file selected"}
-                </span>
-              </div>
-
-              <div className={styles.buttonRow}>
-                <button
-                  type="button"
-                  className={styles.deleteButton}
-                  onClick={handleDeleteOrganisation}
-                  disabled={deleting}
-                >
-                  {deleting ? "Deleting..." : "Delete"}
-                </button>
-                <button type="submit" className={styles.submitButton} disabled={saving}>
-                  {saving ? "Saving..." : "Save changes"}
-                </button>
-              </div>
-            </form>
+      <h1 className={styles.title}>Update Organisation</h1>
+      <div className={styles.formCard}>
+        <form onSubmit={handleSubmit} className={styles.form} noValidate>
+          <input
+            ref={imageInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleImageChange}
+            className={styles.imageInput}
+          />
+          <div className={styles.imageControls}>
+            <button
+              type="button"
+              className={`${styles.btnTiny} ${styles.btnTinyNeutral}`}
+              onClick={() => imageInputRef.current?.click()}
+            >
+              Change Logo
+            </button>
           </div>
-        </div>
-      )}
+          <div className={styles.imagePickerSection}>
+            <div className={styles.imagePickerWrapper}>
+              <div className={styles.imageLabel}>
+                {imagePreview && (
+                  <img src={imagePreview} alt="Logo" className={styles.previewImage} />
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className={styles.formGroup}>
+            <label className={styles.label}>Organisation Name</label>
+            <input
+              name="name"
+              value={formData.name}
+              onChange={handleInputChange}
+              className={`${styles.input} ${validationErrors.name ? 'error' : ''}`}
+              required
+            />
+            {validationErrors.name && <p className={styles.errorText}>{validationErrors.name}</p>}
+          </div>
+
+            <div className={styles.formGroup}>
+              <label className={styles.label}>Description</label>
+              <textarea
+                name="description"
+                value={formData.description}
+                onChange={handleInputChange}
+                className={`${styles.textarea} ${validationErrors.description ? 'error' : ''}`}
+                rows={4}
+                required
+              />
+              {validationErrors.description && <p className={styles.errorText}>{validationErrors.description}</p>}
+            </div>
+
+          <div className={styles.formGroup}>
+            <label className={styles.label}>Contact Email</label>
+            <input
+              type="email"
+              name="contact_email"
+              value={formData.contact_email}
+              onChange={handleInputChange}
+              className={`${styles.input} ${validationErrors.contact_email ? 'error' : ''}`}
+              required
+            />
+            {validationErrors.contact_email && <p className={styles.errorText}>{validationErrors.contact_email}</p>}
+          </div>
+
+          <h3 className={styles.sectionTitle}>Bank Details</h3>
+          <div className={styles.formGroup}>
+            <label className={styles.label}>Account Name</label>
+            <input
+              name="bankAccountName"
+              value={formData.bankAccountName}
+              onChange={handleInputChange}
+              className={`${styles.input} ${validationErrors.bankAccountName ? 'error' : ''}`}
+              required
+            />
+            {validationErrors.bankAccountName && <p className={styles.errorText}>{validationErrors.bankAccountName}</p>}
+          </div>
+          <div className={styles.formGroup}>
+            <label className={styles.label}>Account Number</label>
+            <input
+              name="bankAccountNumber"
+              value={formData.bankAccountNumber}
+              onChange={handleInputChange}
+              className={`${styles.input} ${validationErrors.bankAccountNumber ? 'error' : ''}`}
+              required
+            />
+            {validationErrors.bankAccountNumber && <p className={styles.errorText}>{validationErrors.bankAccountNumber}</p>}
+          </div>
+          <div className={styles.formGroup}>
+            <label className={styles.label}>IFSC</label>
+            <input
+              name="bankIfsc"
+              value={formData.bankIfsc}
+              onChange={handleInputChange}
+              className={`${styles.input} ${validationErrors.bankIfsc ? 'error' : ''}`}
+              required
+            />
+            {validationErrors.bankIfsc && <p className={styles.errorText}>{validationErrors.bankIfsc}</p>}
+          </div>
+          <div className={styles.formGroup}>
+            <label className={styles.label}>Bank Address</label>
+            <input
+              name="bankAddress"
+              value={formData.bankAddress}
+              onChange={handleInputChange}
+              className={`${styles.input} ${validationErrors.bankAddress ? 'error' : ''}`}
+              required
+            />
+            {validationErrors.bankAddress && <p className={styles.errorText}>{validationErrors.bankAddress}</p>}
+          </div>
+
+          <h3 className={styles.sectionTitle}>KYC Document</h3>
+          <input
+            ref={kycInputRef}
+            type="file"
+            accept="image/*,application/pdf"
+            onChange={handleKycChange}
+            className={styles.fileInputHidden}
+          />
+          <div className={styles.fileRow}>
+            <button
+              type="button"
+              className={`${styles.btnTiny} ${styles.btnTinyPrimary}`}
+              onClick={() => kycInputRef.current?.click()}
+            >
+              Upload KYC
+            </button>
+            <span className={styles.fileName}>{kycDoc?.name || "No file selected"}</span>
+          </div>
+
+          <div className={styles.buttonRow}>
+            <button
+              type="button"
+              className={styles.deleteButton}
+              onClick={handleDeleteOrganisation}
+              disabled={deleting}
+            >
+              {deleting ? "Deleting..." : "Delete"}
+            </button>
+            <button type="submit" className={styles.submitButton} disabled={saving}>
+              {saving ? "Saving..." : "Save Changes"}
+            </button>
+          </div>
+        </form>
+        {formErrorSummary && (
+          <div className={styles.errorSummary} role="alert">
+            {formErrorSummary}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

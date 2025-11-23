@@ -200,6 +200,22 @@
 .deleteButton:active { background: #ffe4e6; }
 
 .errorText { color: #ef4444; font-weight: 600; }
+.errorSummary {
+  width: 100%;
+  max-width: 840px;
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  padding: 12px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  margin: 4px auto 6px;
+}
+.input.error, .textarea.error {
+  border-color: #dc2626;
+  box-shadow: 0 0 0 3px rgba(220,38,38,.12);
+}
 
 /* Responsive */
 @media (max-width: 1000px) {

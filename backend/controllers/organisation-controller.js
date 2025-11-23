@@ -16,11 +16,6 @@ const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
 const crypto = require("crypto");
 const sharp = require("sharp");
 const s3 = require("../middleware/s3Client.js");
-// const Razorpay = require("razorpay");
-// const razorpay = new Razorpay({
-//   key_id: process.env.RAZORPAY_KEY_ID,
-//   key_secret: process.env.RAZORPAY_KEY_ID_SECRET,
-// });
 
 exports.getMyOrganisation = async (req, res, next) => {
   try {
@@ -209,14 +204,6 @@ exports.createOrganisation = async (req, res, next) => {
 
 exports.updateOrganisationDetail = async (req, res, next) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      const error = new Error("Validation failed. Enter fields correctly.");
-      error.statusCode = 422;
-      error.data = errors.array();
-      throw error;
-    }
-
     const userId = req.userId;
     const organisation = await Organisation.findOne({ createdBy: userId });
     if (!organisation) {
@@ -225,44 +212,29 @@ exports.updateOrganisationDetail = async (req, res, next) => {
       throw error;
     }
 
-    organisation.name = req.body.name || organisation.name;
-    organisation.description = req.body.description || organisation.description;
-    organisation.contact_email =
-      req.body.contact_email || organisation.contact_email;
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      const error = new Error("Validation failed. Enter fields correctly.");
+      error.statusCode = 422;
+      error.data = errors.array();
+      throw error;
+    }
 
-    const kycFullName = req.body.kyc?.fullName || req.body["kyc.fullName"];
-    const kycPhoneNumber =
-      req.body.kyc?.phoneNumber || req.body["kyc.phoneNumber"];
+    // Map optional bank fields from dot notation if sent that way
+    const bankAccountName = req.body["bank.accountName"] || req.body.bank?.accountName;
+    const bankAccountNumber = req.body["bank.accountNumber"] || req.body.bank?.accountNumber;
+    const bankIfsc = (req.body["bank.ifsc"] || req.body.bank?.ifsc || "").toUpperCase();
+    const bankAddress = req.body["bank.address"] || req.body.bank?.address;
+
+    if (bankAccountName) organisation.bank.accountName = bankAccountName.trim();
+    if (bankAccountNumber) organisation.bank.accountNumber = bankAccountNumber.trim();
+    if (bankIfsc) organisation.bank.ifsc = bankIfsc.trim();
+    if (bankAddress) organisation.bank.address = bankAddress.trim();
+
+    const kycFullName = req.body["kyc.fullName"] || req.body.kyc?.fullName;
+    const kycPhoneNumber = req.body["kyc.phoneNumber"] || req.body.kyc?.phoneNumber;
     if (kycFullName) organisation.kyc.fullName = kycFullName;
     if (kycPhoneNumber) organisation.kyc.phoneNumber = kycPhoneNumber;
-
-    // Bank updates (optional fields)
-    const updates = {
-      accountName: (req.body.bankAccountName || "").trim(),
-      accountNumber: (req.body.bankAccountNumber || "").trim(),
-      ifsc: (req.body.bankIfsc || "").trim().toUpperCase(),
-      address: (req.body.bankAddress || "").trim(),
-    };
-
-    if (updates.accountName)
-      organisation.bank.accountName = updates.accountName;
-    if (updates.accountNumber) {
-      if (!/^[0-9]{9,18}$/.test(updates.accountNumber)) {
-        const e = new Error("Invalid bank account number.");
-        e.statusCode = 422;
-        throw e;
-      }
-      organisation.bank.accountNumber = updates.accountNumber;
-    }
-    if (updates.ifsc) {
-      if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(updates.ifsc)) {
-        const e = new Error("Invalid IFSC code.");
-        e.statusCode = 422;
-        throw e;
-      }
-      organisation.bank.ifsc = updates.ifsc;
-    }
-    if (updates.address) organisation.bank.address = updates.address;
 
     const imageFile = req.files?.image?.[0];
     const docFile = req.files?.document?.[0];

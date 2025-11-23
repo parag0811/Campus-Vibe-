@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import styles from './all-admins.module.css';
 import { useToast } from '@/components/common/toast';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL; 
 
 const AdminManagement = () => {
   const router = useRouter();
