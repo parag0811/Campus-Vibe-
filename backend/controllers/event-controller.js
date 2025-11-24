@@ -4,21 +4,34 @@ dotenv.config();
 const Event = require("../models/event.js");
 const EventAnalytics = require("../models/event-analytics.js");
 const User = require("../models/user.js");
-const { GetObjectCommand } = require("@aws-sdk/client-s3");
+const { S3Client, GetObjectCommand } = require("@aws-sdk/client-s3");
 const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
-const s3 = require("../middleware/s3Client.js");
 
-const orgPublicSelect = "name contact_email image"; // safe public fields
+const s3 = new S3Client({
+  region: process.env.BUCKET_REGION,
+  credentials:
+    process.env.ACCESS_KEY && process.env.SECRET_ACCESS_KEY
+      ? {
+          accessKeyId: process.env.ACCESS_KEY,
+          secretAccessKey: process.env.SECRET_ACCESS_KEY,
+        }
+      : undefined,
+});
 
-const signOrNull = async (key) => {
+async function signOrNull(key, expiresIn = 900) {
   if (!key) return null;
   try {
-    const cmd = new GetObjectCommand({ Bucket: process.env.BUCKET_NAME, Key: key });
-    return await getSignedUrl(s3, cmd, { expiresIn: 60 * 5 });
-  } catch (_) {
+    const cmd = new GetObjectCommand({
+      Bucket: process.env.BUCKET_NAME,
+      Key: key,
+    });
+    return await getSignedUrl(s3, cmd, { expiresIn });
+  } catch {
     return null;
   }
-};
+}
+
+const orgPublicSelect = "name contact_email imageName"; // use imageName
 
 exports.getEvents = async (req, res, next) => {
   try {
@@ -37,7 +50,7 @@ exports.getEvents = async (req, res, next) => {
     for (const ev of events) {
       ev.imageUrl = await signOrNull(ev.posterImage);
       const org = ev.created_by_organisation || {};
-      const orgLogoUrl = await signOrNull(org.image);
+      const orgLogoUrl = await signOrNull(org.imageName);
       ev.organisation = {
         _id: org?._id,
         name: org?.name || null,
@@ -58,37 +71,53 @@ exports.getEvents = async (req, res, next) => {
 
 exports.getEventDetail = async (req, res, next) => {
   try {
-    const eventId = req.params.eventId;
-
+    const { eventId } = req.params;
     const event = await Event.findById(eventId)
       .populate({ path: "created_by_organisation", select: orgPublicSelect })
       .lean();
 
     if (!event) {
-      const error = new Error("Event not available.");
-      error.statusCode = 404;
-      throw error;
+      return res.status(404).json({ message: "Event not found" });
     }
 
-    const posterSigned = await signOrNull(event.posterImage);
+    let posterSigned = null;
+    if (event.posterImage) {
+      posterSigned = await signOrNull(event.posterImage);
+    }
 
-    const org = event.created_by_organisation || {};
-    const orgLogoUrl = await signOrNull(org.image);
+    const orgDoc = event.created_by_organisation || null;
+    let orgLogoSigned = null;
+    if (orgDoc?.imageName) {
+      orgLogoSigned = await signOrNull(orgDoc.imageName);
+    }
 
-    const eventObj = {
-      ...event,
-      imageUrl: posterSigned,
-      organisation: {
-        _id: org?._id,
-        name: org?.name || null,
-        contact_email: org?.contact_email || null,
-        logoUrl: orgLogoUrl,
+    const payload = {
+      event: {
+        _id: event._id,
+        title: event.title,
+        description: event.description,
+        mode: event.mode,
+        venue: event.venue,
+        price: event.price,
+        start_date: event.start_date,
+        end_date: event.end_date,
+        registeration_deadline: event.registeration_deadline,
+        max_attendees: event.max_attendees,
+        attendees: event.attendees,
+        organiser_contact: event.organiser_contact,
+        posterUrl: posterSigned
       },
+      organisation: orgDoc
+        ? {
+            _id: orgDoc._id,
+            name: orgDoc.name,
+            contact_email: orgDoc.contact_email,
+            logoUrl: orgLogoSigned
+          }
+        : null
     };
 
-    delete eventObj.created_by_admin;
-
-    return res.status(200).json({ event: eventObj });
+    return res.status(200).json(payload);
   } catch (err) {
     if (!err.statusCode) err.statusCode = 500;
     next(err);
@@ -228,7 +257,7 @@ exports.getMyEvents = async (req, res, next) => {
         _id: org?._id,
         name: org?.name || null,
         contact_email: org?.contact_email || null,
-        logoUrl: await signOrNull(org.image),
+        logoUrl: await signOrNull(org.imageName),
       };
       delete ev.created_by_admin;
       return ev;

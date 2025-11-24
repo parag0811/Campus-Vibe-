@@ -23,7 +23,9 @@ const EventDetailPage = () => {
       if (!eventId) return;
       try {
         setLoading(true);
-        const response = await fetch(`${API_BASE}/eventDetail/${eventId}`);
+        const response = await fetch(`${API_BASE}/eventDetail/${eventId}`, {
+          cache: "no-store",
+        });
         const data = await response.json();
         if (!response.ok) {
           throw new Error(
@@ -32,24 +34,10 @@ const EventDetailPage = () => {
         }
 
         const ev = data.event || {};
-        const posterUrl =
-          ev.imageUrl ||
-          (ev.posterImage
-            ? (/^https?:\/\//i.test(ev.posterImage)
-                ? ev.posterImage
-                : `${API_BASE}/public/${ev.posterImage}`)
-            : null);
+        const org = data.organisation || null;
 
-        const org = ev.organisation || ev.created_by_organisation || null;
-        let orgLogoUrl = org?.logoUrl || null;
-        const rawKey = org?.image || ev?.created_by_organisation?.image || null;
-
-        if (!orgLogoUrl && rawKey && /^https?:\/\//i.test(rawKey)) {
-          orgLogoUrl = rawKey;
-        }
-
-        setEvent({ ...ev, posterUrl });
-        setOrganisation(org ? { ...org, logoUrl: orgLogoUrl } : null);
+        setEvent(ev);
+        setOrganisation(org);
 
         if (ev.attendees && user?._id) {
           setUserRegistered(
@@ -57,9 +45,7 @@ const EventDetailPage = () => {
           );
         }
       } catch (err) {
-        toast.error(
-          err.message || "Something went wrong while fetching event details"
-        );
+        toast.error(err.message || "Failed to load event");
       } finally {
         setLoading(false);
       }
