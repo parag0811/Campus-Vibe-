@@ -17,6 +17,8 @@ module.exports = (req, res, next) => {
     req.userId = decodedToken.userId;
     req.userRole = decodedToken.userRole;
     req.profileCompleted = decodedToken.profileCompleted;
+    req.userEmail = decodedToken.email
+
     next();
   } catch (err) {
     if (err.name === "TokenExpiredError") {

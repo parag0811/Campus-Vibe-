@@ -11,6 +11,7 @@ const orgRoute = require("./routes/organisation-route.js");
 const orgAdminOwnerRoute = require("./routes/organisation-admin-owner-route.js");
 const eventUserRoute = require("./routes/event-user-route.js");
 const paymentRoutes = require("./routes/payment-route.js");
+const ownerSettlementRoute = require("./routes/owner-settlement-route");
 
 const app = express();
 
@@ -32,6 +33,7 @@ app.use("/org", orgRoute);
 app.use("/org-admin", orgAdminOwnerRoute);
 app.use("/", eventUserRoute);
 app.use("/payment", paymentRoutes);
+app.use("/owner", ownerSettlementRoute);
 
 app.use((error, req, res, next) => {
   const status = error.statusCode || 500;

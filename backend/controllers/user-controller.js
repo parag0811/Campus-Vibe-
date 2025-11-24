@@ -244,6 +244,7 @@ exports.loginUser = async (req, res, next) => {
         userId: user._id.toString(),
         userRole: user.role,
         profileCompleted: user.profileCompleted,
+        email:user.email
       },
       process.env.JWT_SECRET,
       { expiresIn: "2h" }
