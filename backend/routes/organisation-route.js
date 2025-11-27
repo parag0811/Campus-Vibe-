@@ -170,4 +170,10 @@ router.get(
   earningsController.getOrganisationEarnings
 );
 
+// PUBLIC: random organisations listing (no auth)
+router.get(
+  "/organisations/public",
+  organisation_controller.getPublicOrganisations
+);
+
 module.exports = router;

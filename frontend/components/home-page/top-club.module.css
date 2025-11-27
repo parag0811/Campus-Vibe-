@@ -1,0 +1,111 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Lato:wght@400;700;900&display=swap");
+
+.container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 5rem 1rem;
+  box-sizing: border-box;
+  font-family: "Lato", sans-serif;
+}
+
+.header {
+  margin-bottom: 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.title {
+  font-size: 2rem;
+  font-weight: 700;
+  margin: 0;
+  color: black;
+}
+
+.purple { color: #8a2be2; }
+
+.shareButton {
+  background-color: #8a2be2;
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border-radius: 10px;
+  font-weight: 700;
+  text-decoration: none;
+  transition: transform .2s ease, background-color .2s ease;
+  box-shadow: 0 6px 18px rgba(138,43,226,.25);
+}
+.shareButton:hover {
+  background-color: #7525c7;
+  transform: translateY(-2px);
+}
+
+/* New simple grid without cards */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.25rem 1.5rem;
+}
+
+.orgItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .6rem;
+}
+
+.avatar {
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #f3f4f6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 4px 12px rgba(0,0,0,.06);
+}
+
+.avatarImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.avatarFallback {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background-color: #8a2be2;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 1.25rem;
+}
+
+.orgLabel {
+  font-weight: 700;
+  color: #111827;
+  font-size: .95rem;
+  text-align: center;
+}
+
+/* Helpers */
+.loading {
+  padding: 2rem 0;
+  font-weight: 600;
+  text-align: center;
+  color: #374151;
+}
+
+/* Responsive */
+@media (min-width: 640px) { .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (min-width: 1024px) { .grid { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
+
+@media (max-width: 640px) {
+  .header { flex-direction: column; align-items: center; gap: 1rem; }
+  .shareButton { align-self: center; }
+}

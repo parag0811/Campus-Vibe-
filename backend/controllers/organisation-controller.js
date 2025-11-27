@@ -11,7 +11,6 @@ const {
   GetObjectCommand,
   DeleteObjectCommand,
 } = require("@aws-sdk/client-s3");
-
 const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
 const crypto = require("crypto");
 const sharp = require("sharp");
@@ -527,5 +526,40 @@ exports.loadAdmins = async (req, res, next) => {
       err.statusCode = 500;
     }
     next(err);
+  }
+};
+
+// random organisations with signed logo URL
+exports.getPublicOrganisations = async (req, res, next) => {
+  try {
+    const limit = Math.min(Math.max(parseInt(req.query.limit || "9", 10), 1), 24);
+
+    const orgs = await Organisation.aggregate([
+      { $match: { imageName: { $exists: true, $ne: null } } },
+      { $sample: { size: limit } },
+      { $project: { _id: 1, name: 1, imageName: 1 } },
+    ]);
+
+    const signed = await Promise.all(
+      orgs.map(async (o) => {
+        let logoUrl = null;
+        try {
+          if (o.imageName) {
+            const cmd = new GetObjectCommand({
+              Bucket: process.env.BUCKET_NAME,
+              Key: o.imageName,
+            });
+            logoUrl = await getSignedUrl(s3, cmd, { expiresIn: 60 * 15 });
+          }
+        } catch {
+          logoUrl = null;
+        }
+        return { organisationId: o._id, name: o.name, logoUrl };
+      })
+    );
+
+    return res.status(200).json({ organisations: signed, count: signed.length });
+  } catch (err) {
+    return res.status(500).json({ message: "Failed to load organisations" });
   }
 };
