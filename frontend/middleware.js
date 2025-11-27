@@ -2,26 +2,47 @@ import { NextResponse } from "next/server";
 
 const protectedRoutes = ["/admin", "/events", "/profile", "/my-events", "/create-organisation"];
 const ownerRoutes = ["/owner"];
-
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
-const OWNER_EMAIL = process.env.NEXT_PUBLIC_OWNER_EMAIL?.toLowerCase?.();
 
 // Safe path match
 function match(pathname, base) {
   return pathname === base || pathname.startsWith(`${base}/`);
 }
 
-// Base64url-safe JWT email decode
-function decodeEmailFromJWT(token) {
-  try {
-    const payload = token.split(".")[1];
-    const base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
-    const padded = base64 + "===".slice((base64.length + 3) % 4);
-    const json = JSON.parse(atob(padded));
-    return (json.email || json.userEmail || "").toLowerCase();
-  } catch {
-    return null;
+async function isOrgAdmin(cookieHeader) {
+  const endpoints = [
+    "/org/organisationAdminOwner/is-member",
+    "/org/organisationAdmin/organisation/is-member",
+    "/org/organisationAdmin/is-member",
+    "/org-admin/organisation/is-member",
+    "/organisation-admin/is-member",
+  ];
+  const headers = { cookie: cookieHeader || "" };
+
+  for (const path of endpoints) {
+    try {
+      const res = await fetch(`${API_BASE}${path}`, {
+        headers,
+        cache: "no-store",
+      });
+      if (res.status === 401) return false; // not logged in
+      if (!res.ok) continue;
+      const data = await res.json().catch(() => ({}));
+      // Accept any of these flags as “is admin/member”
+      const ok =
+        data?.orgAdmin ||
+        data?.isMember ||
+        data?.member ||
+        data?.isAdmin ||
+        data?.admin ||
+        data?.owner ||
+        data?.isOwner;
+      if (ok) return true;
+    } catch {
+      //  next endpoint
+    }
   }
+  return false;
 }
 
 export async function middleware(request) {
@@ -39,57 +60,19 @@ export async function middleware(request) {
     return NextResponse.next();
   }
 
-  // Owner-only routes
+  // Owner-only: only require login here (backend fetches owner)
   const isOwnerRoute = ownerRoutes.some((r) => match(pathname, r));
   if (isOwnerRoute) {
     if (!token) return NextResponse.redirect(new URL("/login", request.url));
-
-    // Fast path: JWT email match
-    const email = decodeEmailFromJWT(token);
-    if (OWNER_EMAIL && email && email === OWNER_EMAIL) {
-      return NextResponse.next();
-    }
-
-    // Fallback: verify via backend (cookie forwarded)
-    try {
-      // Try common endpoints; keep logic lenient to not break existing APIs
-      let res = await fetch(`${API_BASE}/user/me`, {
-        headers: { cookie: request.headers.get("cookie") || "" },
-        cache: "no-store",
-      });
-      if (res.status === 404) {
-        res = await fetch(`${API_BASE}/auth/me`, {
-          headers: { cookie: request.headers.get("cookie") || "" },
-          cache: "no-store",
-        });
-      }
-      if (res.status !== 200) return NextResponse.redirect(new URL("/", request.url));
-      const data = await res.json().catch(() => ({}));
-      const backendEmail = (data?.user?.email || data?.email || "").toLowerCase();
-      if (OWNER_EMAIL && backendEmail === OWNER_EMAIL) return NextResponse.next();
-      return NextResponse.redirect(new URL("/", request.url));
-    } catch {
-      return NextResponse.redirect(new URL("/", request.url));
-    }
+    return NextResponse.next();
   }
 
-  // Admin routes (org owners/admins) — keep existing logic
+  // Admin (org owners/admins)
   const isAdminRoute = match(pathname, "/admin");
   if (isAdminRoute) {
     if (!token) return NextResponse.redirect(new URL("/login", request.url));
-    try {
-      const res = await fetch(`${API_BASE}/org-admin/organisation/is-member`, {
-        headers: { cookie: request.headers.get("cookie") || "" },
-        cache: "no-store",
-      });
-      if (res.status === 401) return NextResponse.redirect(new URL("/login", request.url));
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data?.orgAdmin) {
-        return NextResponse.redirect(new URL("/", request.url));
-      }
-    } catch {
-      return NextResponse.redirect(new URL("/", request.url));
-    }
+    const ok = await isOrgAdmin(request.headers.get("cookie") || "");
+    if (!ok) return NextResponse.redirect(new URL("/", request.url));
   }
 
   // Other protected routes: login required

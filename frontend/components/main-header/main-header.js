@@ -5,6 +5,8 @@ import { useRouter, usePathname } from "next/navigation";
 import styles from "./main-header.module.css";
 import { useAuth } from "@/components/common/authContext";
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL;
+
 export default function MainHeader() {
   const router = useRouter();
   const pathname = usePathname();
@@ -12,6 +14,7 @@ export default function MainHeader() {
   const [localLoading, setLocalLoading] = useState(false);
   const [isClient, setIsClient] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [isOrgAdmin, setIsOrgAdmin] = useState(false);
 
   useEffect(() => { setIsClient(true); }, []);
 
@@ -29,6 +32,46 @@ export default function MainHeader() {
     if (menuOpen) window.addEventListener("keydown", onEsc);
     return () => window.removeEventListener("keydown", onEsc);
   }, [menuOpen]);
+
+  // Backend  check to allow "student" role who is org admin
+  const fetchOrgAdmin = useCallback(async () => {
+    if (!API_BASE || !authChecked || !isAuthenticated) {
+      setIsOrgAdmin(false);
+      return;
+    }
+    const endpoints = [
+      "/org/organisationAdminOwner/is-member",
+      "/org/organisationAdmin/organisation/is-member",
+      "/org/organisationAdmin/is-member",
+      "/org-admin/organisation/is-member",
+      "/organisation-admin/is-member",
+    ];
+    const headers = { "Cache-Control": "no-cache" };
+    for (const ep of endpoints) {
+      try {
+        const res = await fetch(`${API_BASE}${ep}`, { credentials: "include", headers });
+        if (res.status === 401) { setIsOrgAdmin(false); return; }
+        if (!res.ok) continue;
+        const data = await res.json().catch(() => ({}));
+        const ok =
+          data?.orgAdmin ||
+          data?.isMember ||
+          data?.member ||
+          data?.isAdmin ||
+          data?.admin ||
+          data?.owner ||
+          data?.isOwner;
+        if (ok) { setIsOrgAdmin(true); return; }
+      } catch {
+        // try next endpoint
+      }
+    }
+    setIsOrgAdmin(false);
+  }, [API_BASE, authChecked, isAuthenticated]);
+
+  useEffect(() => {
+    fetchOrgAdmin();
+  }, [fetchOrgAdmin, pathname]); 
 
   const handleLogout = async () => {
     setLocalLoading(true);
@@ -59,7 +102,14 @@ export default function MainHeader() {
       );
     }
 
-    const hasAdmin = (user?.organisation_Admin?.length || 0) > 0 || user?.role === "organisationAdmin";
+    const hasAdminHint =
+      user?.role === "organisationAdmin" ||
+      (Array.isArray(user?.roles) && user.roles.includes("organisationAdmin")) ||
+      (Array.isArray(user?.organisation_Admin) && user.organisation_Admin.length > 0) ||
+      (Array.isArray(user?.organisation_admin) && user.organisation_admin.length > 0) ||
+      (Array.isArray(user?.organisationAdmins) && user.organisationAdmins.length > 0);
+
+    const showAdmin = isOrgAdmin || hasAdminHint;
 
     return (
       <div className={styles.authActions}>
@@ -98,7 +148,7 @@ export default function MainHeader() {
                 My Registered Events
               </button>
 
-              {hasAdmin && (
+              {showAdmin && (
                 <button
                   className={styles.menuItem}
                   onClick={() => { setMenuOpen(false); router.push("/admin/events"); }}
