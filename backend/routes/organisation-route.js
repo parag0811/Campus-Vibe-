@@ -165,12 +165,11 @@ router.get(
 
 router.get(
   "/organisationAdmin/earnings",
-  isAuth,
-  isOnlyOnwer,
+  isAuth, 
   earningsController.getOrganisationEarnings
 );
 
-// PUBLIC: random organisations listing (no auth)
+// PUBLIC: random organisation
 router.get(
   "/organisations/public",
   organisation_controller.getPublicOrganisations

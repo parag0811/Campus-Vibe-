@@ -1,4 +1,3 @@
-const mongoose = require("mongoose");
 const Organisation = require("../models/organisation.js");
 const Payment = require("../models/payment.js");
 
@@ -6,18 +5,25 @@ exports.getOrganisationEarnings = async (req, res, next) => {
   try {
     const userId = req.userId;
 
+    // OWNER-ONLY: must be the organisation creator
     const org = await Organisation.findOne({ createdBy: userId })
       .select("_id name")
       .lean();
 
     if (!org) {
-      return res.status(404).json({ message: "Organisation not found." });
+      return res.status(403).json({ message: "Only the organisation owner can view earnings." });
     }
 
-    const matchStage = {
-      organisation: org._id,
-      status: "paid",
+    const orgMatchAny = {
+      $or: [
+        { organisationId: org._id },
+        { organisation: org._id },
+        { orgId: org._id },
+      ],
     };
+    const statusOk = { status: { $in: ["paid", "captured", "succeeded"] } };
+
+    const matchStage = { $and: [orgMatchAny, statusOk] };
 
     const [totalsAgg] = await Payment.aggregate([
       { $match: matchStage },
@@ -25,9 +31,15 @@ exports.getOrganisationEarnings = async (req, res, next) => {
         $group: {
           _id: null,
           ticketsSold: { $sum: 1 },
-          grossAmountPaise: { $sum: "$amount" },
-          platformFeePaise: { $sum: "$platformFee" },
-          orgSharePaise: { $sum: "$orgShare" },
+          grossAmountPaise: {
+            $sum: { $ifNull: ["$amountPaise", { $ifNull: ["$amount", 0] }] },
+          },
+          platformFeePaise: {
+            $sum: { $ifNull: ["$platformFeePaise", { $ifNull: ["$platformFee", 0] }] },
+          },
+          orgSharePaise: {
+            $sum: { $ifNull: ["$orgSharePaise", { $ifNull: ["$orgShare", 0] }] },
+          },
           lastPaymentAt: { $max: "$createdAt" },
         },
       },
@@ -39,9 +51,15 @@ exports.getOrganisationEarnings = async (req, res, next) => {
         $group: {
           _id: "$event",
           ticketsSold: { $sum: 1 },
-          grossAmountPaise: { $sum: "$amount" },
-          platformFeePaise: { $sum: "$platformFee" },
-          orgSharePaise: { $sum: "$orgShare" },
+          grossAmountPaise: {
+            $sum: { $ifNull: ["$amountPaise", { $ifNull: ["$amount", 0] }] },
+          },
+          platformFeePaise: {
+            $sum: { $ifNull: ["$platformFeePaise", { $ifNull: ["$platformFee", 0] }] },
+          },
+          orgSharePaise: {
+            $sum: { $ifNull: ["$orgSharePaise", { $ifNull: ["$orgShare", 0] }] },
+          },
           lastPaymentAt: { $max: "$createdAt" },
         },
       },
