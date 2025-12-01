@@ -150,23 +150,23 @@
   height: 100%;
   object-fit: cover;
   object-position: center;
-  transition: transform .35s ease;
+  transition: transform .35s ease, opacity .2s ease;
+}
+.hidden { opacity: 0; }
+.visible { opacity: 1; }
+
+.posterSkeleton {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, #f3f4f6 25%, #e5e7eb 37%, #f3f4f6 63%);
+  background-size: 400% 100%;
+  animation: posterShimmer 1.2s ease-in-out infinite;
+  border-radius: 18px;
 }
 
-.cardWrapper:hover .posterImg { transform: scale(1.04); }
-
-.promotedBadge {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  background: #ff005c;
-  color: #fff;
-  font-size: 0.65rem;
-  font-weight: 700;
-  padding: 4px 10px;
-  border-radius: 6px;
-  letter-spacing: .5px;
-  box-shadow: 0 2px 8px rgba(0,0,0,.35);
+@keyframes posterShimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: 0 0; }
 }
 
 .cardContent {

@@ -611,6 +611,7 @@
   background-repeat: no-repeat;
   border-radius: 14px;
   box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+  position: relative;
 }
 
 /* Right column */
@@ -833,4 +834,55 @@
   font-size: 0.85rem;
   color: #6b7280;
   font-weight: 500;
+}
+
+.heroSkeleton {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(90deg, rgba(51,51,51,.25) 25%, rgba(51,51,51,.35) 37%, rgba(51,51,51,.25) 63%);
+  background-size: 400% 100%;
+  animation: heroShimmer 1.2s ease-in-out infinite;
+}
+
+.posterBoxSkeleton {
+  position: absolute;
+  inset: 0;
+  border-radius: 14px;
+  background: linear-gradient(90deg, #f3f4f6 25%, #e5e7eb 37%, #f3f4f6 63%);
+  background-size: 400% 100%;
+  animation: posterShimmer 1.2s ease-in-out infinite;
+}
+
+@keyframes heroShimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: 0 0; }
+}
+@keyframes posterShimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: 0 0; }
+}
+
+.orgLogoSkeleton {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(90deg, #f3f4f6 25%, #e5e7eb 37%, #f3f4f6 63%);
+  background-size: 400% 100%;
+  animation: posterShimmer 1.2s ease-in-out infinite;
+  position: absolute;
+  inset: 0;
+}
+
+.orgLogoFallback {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #8b5cf6;
+  color: #fff;
+  font-weight: 800;
+  font-size: .85rem;
+  display: grid;
+  place-items: center;
+  border: 2px solid #334155;
 }

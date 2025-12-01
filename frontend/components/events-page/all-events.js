@@ -12,12 +12,29 @@ if (typeof window !== "undefined" && !API_BASE) {
 
 const EventCard = ({ id, image, title, date, time, orgName, promoted }) => {
   const router = useRouter();
+  const [loaded, setLoaded] = useState(false);
+  const [broken, setBroken] = useState(false);
+
   const handleClick = () => router.push(`/events/${id}`);
+
+  const src = broken ? "/default-event.jpg" : image;
+
   return (
     <div className={styles.cardWrapper} onClick={handleClick}>
       <div className={styles.posterCard}>
         <div className={styles.posterBox}>
-          <img src={image} alt={title} className={styles.posterImg} loading="lazy" />
+          {!loaded && <div className={styles.posterSkeleton} />}
+          <img
+            src={src}
+            alt={title}
+            className={`${styles.posterImg} ${loaded ? styles.visible : styles.hidden}`}
+            loading="lazy"
+            onLoad={() => setLoaded(true)}
+            onError={() => {
+              setBroken(true);
+              setLoaded(true);
+            }}
+          />
           {promoted && <span className={styles.promotedBadge}>PROMOTED</span>}
         </div>
         <div className={styles.cardContent}>
@@ -143,20 +160,16 @@ export default function AllEvents() {
     [API_BASE, buildQuery, page]
   );
 
-  // Initial & filter-triggered fetch
   useEffect(() => {
-    // Reset page when filters change
     setPage(1);
     fetchEvents(true);
   }, [debouncedSearch, mode, free, upcoming, sort, fetchEvents]);
 
-  // Load more
   const loadMore = () => {
     const next = page + 1;
     setPage(next);
   };
 
-  // Fetch when page increments (not from filter reset)
   useEffect(() => {
     if (page > 1) fetchEvents(false);
   }, [page, fetchEvents]);

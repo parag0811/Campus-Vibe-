@@ -13,6 +13,11 @@ const EventDetailPage = () => {
   const [loading, setLoading] = useState(true);
   const [isRegistering, setIsRegistering] = useState(false);
   const [userRegistered, setUserRegistered] = useState(false);
+  const [heroLoaded, setHeroLoaded] = useState(false);
+  const [orgLogoLoaded, setOrgLogoLoaded] = useState(false);
+  const [orgLogoBroken, setOrgLogoBroken] = useState(false);
+  const [orgContactLogoLoaded, setOrgContactLogoLoaded] = useState(false);
+  const [orgContactLogoBroken, setOrgContactLogoBroken] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
   const { eventId } = useParams();
@@ -52,6 +57,19 @@ const EventDetailPage = () => {
     };
     fetchEventDetails();
   }, [eventId, toast, user?._id]);
+
+  useEffect(() => {
+    setHeroLoaded(false);
+    if (!event?.posterUrl) {
+      setHeroLoaded(true);
+      return;
+    }
+    const img = new Image();
+    img.src = event.posterUrl;
+    img.onload = () => setHeroLoaded(true);
+    img.onerror = () => setHeroLoaded(true);
+    return () => { img.onload = null; img.onerror = null; };
+  }, [event?.posterUrl]);
 
   const handleRegistration = async () => {
     if (!eventId) return;
@@ -221,96 +239,111 @@ const EventDetailPage = () => {
   return (
     <div className={styles.container}>
       <div
-  className={styles.heroBG}
-  style={{
-    backgroundImage: event.posterUrl ? `url(${event.posterUrl})` : "none",
-  }}
->
-  <div className={styles.heroShade}></div> 
-  <div className={styles.heroBlur}></div> 
+        className={styles.heroBG}
+        style={{
+          backgroundImage: event.posterUrl ? `url(${event.posterUrl})` : "none",
+        }}
+      >
+        {!heroLoaded && <div className={styles.heroSkeleton}></div>}
+        <div className={styles.heroShade}></div>
+        <div className={styles.heroBlur}></div>
 
-  <div className={styles.heroWrapper}>
-    {/* LEFT POSTER */}
-    <div
-      className={styles.posterBox}
-      style={{
-        backgroundImage: event.posterUrl ? `url(${event.posterUrl})` : "none",
-      }}
-    />
+        <div className={styles.heroWrapper}>
+          {/* LEFT POSTER */}
+          <div className={styles.posterBox}
+            style={{
+              backgroundImage: event.posterUrl ? `url(${event.posterUrl})` : "none",
+            }}
+          >
+            {!heroLoaded && <div className={styles.posterBoxSkeleton}></div>}
+          </div>
 
-    {/* RIGHT SIDE */}
-    <div className={styles.heroRightSide}>
-      <h1 className={styles.heroTitleClean}>{event.title}</h1>
+          {/* RIGHT SIDE */}
+          <div className={styles.heroRightSide}>
+            <h1 className={styles.heroTitleClean}>{event.title}</h1>
 
-      <div className={styles.quickMeta}>
-        <span>{formatDate(event.start_date)}</span>
-        {event.end_date && <span>Ends: {formatDate(event.end_date)}</span>}
-        <span>
-          {event.mode?.[0]?.toUpperCase() + event.mode?.slice(1)}
-        </span>
-        <span>{event.venue}</span>
-        <span>{isFree() ? "Free" : `₹${event.price}`}</span>
-      </div>
+            <div className={styles.quickMeta}>
+              <span>{formatDate(event.start_date)}</span>
+              {event.end_date && <span>Ends: {formatDate(event.end_date)}</span>}
+              <span>{event.mode?.[0]?.toUpperCase() + event.mode?.slice(1)}</span>
+              <span>{event.venue}</span>
+              <span>{isFree() ? "Free" : `₹${event.price}`}</span>
+            </div>
 
-      <div className={styles.orgStrip}>
-        {organisation?.logoUrl && (
-          <img src={organisation.logoUrl} alt="org" />
-        )}
-        <span>{organisation?.name || "Organizer"}</span>
-      </div>
+            <div className={styles.orgStrip}>
+              {organisation?.logoUrl && (
+                <div style={{ position: "relative" }}>
+                  {!orgLogoLoaded && <div className={styles.orgLogoSkeleton} />}
+                  {!orgLogoBroken && (
+                    <img
+                      src={organisation.logoUrl}
+                      alt="org"
+                      style={{ opacity: orgLogoLoaded ? 1 : 0, transition: "opacity .2s ease" }}
+                      onLoad={() => setOrgLogoLoaded(true)}
+                      onError={() => { setOrgLogoBroken(true); setOrgLogoLoaded(true); }}
+                    />
+                  )}
+                  {orgLogoBroken && (
+                    <div className={styles.orgLogoFallback}>
+                      {(organisation?.name || "O").charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                </div>
+              )}
+              <span>{organisation?.name || "Organizer"}</span>
+            </div>
 
-      {/** REGISTER CARD (unchanged) */}
-      <div className={styles.eventCard}>
-        <div className={styles.dateTimeSection}>
-          <h3 className={styles.sectionTitle}>Event Dates</h3>
+            {/* REGISTER CARD (unchanged) */}
+            <div className={styles.eventCard}>
+              <div className={styles.dateTimeSection}>
+                <h3 className={styles.sectionTitle}>Event Dates</h3>
 
-          <p className={styles.eventDate}>
-            <strong>
-              {event.start_date && event.end_date
-                ? `${formatDate(event.start_date)} to ${formatDate(
-                    event.end_date
-                  )}`
-                : formatDate(event.start_date)}
-            </strong>
-          </p>
+                <p className={styles.eventDate}>
+                  <strong>
+                    {event.start_date && event.end_date
+                      ? `${formatDate(event.start_date)} to ${formatDate(
+                          event.end_date
+                        )}`
+                      : formatDate(event.start_date)}
+                  </strong>
+                </p>
 
-          <p className={styles.regDeadline}>
-            <span style={{ fontWeight: 500 }}>Registration Deadline:</span>{" "}
-            {formatDate(event.registeration_deadline)}
-          </p>
+                <p className={styles.regDeadline}>
+                  <span style={{ fontWeight: 500 }}>Registration Deadline:</span>{" "}
+                  {formatDate(event.registeration_deadline)}
+                </p>
+              </div>
+
+              <button
+                className={styles.bookNowBtn}
+                onClick={handleRegistration}
+                disabled={
+                  userRegistered || !isRegistrationOpen() || isRegistering
+                }
+              >
+                {userRegistered
+                  ? "Already Registered"
+                  : isRegistering
+                  ? "Registering..."
+                  : !isRegistrationOpen()
+                  ? "Registration Closed"
+                  : isFree()
+                  ? "Register Now"
+                  : `Register - ₹${event.price}`}
+              </button>
+
+              <div className={styles.registrationInfo}>
+                {event.max_attendees && (
+                  <p className={styles.availability}>
+                    {event.max_attendees - (event.attendees?.length || 0)} spots
+                    remaining
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
-
-        <button
-          className={styles.bookNowBtn}
-          onClick={handleRegistration}
-          disabled={
-            userRegistered || !isRegistrationOpen() || isRegistering
-          }
-        >
-          {userRegistered
-            ? "Already Registered"
-            : isRegistering
-            ? "Registering..."
-            : !isRegistrationOpen()
-            ? "Registration Closed"
-            : isFree()
-            ? "Register Now"
-            : `Register - ₹${event.price}`}
-        </button>
-
-        <div className={styles.registrationInfo}>
-          {event.max_attendees && (
-            <p className={styles.availability}>
-              {event.max_attendees - (event.attendees?.length || 0)} spots
-              remaining
-            </p>
-          )}
-        </div>
       </div>
-    </div>
-  </div>
-</div>
-
 
       <section className={styles.contentSection}>
         <div className={styles.contentWrapper}>
@@ -362,10 +395,21 @@ const EventDetailPage = () => {
                 <div className={styles.orgContactBlock}>
                   {organisation?.logoUrl && (
                     <div className={styles.orgContactLogo}>
-                      <img
-                        src={organisation.logoUrl}
-                        alt={organisation?.name || "Organisation"}
-                      />
+                      {!orgContactLogoLoaded && <div className={styles.orgLogoSkeleton} />}
+                      {!orgContactLogoBroken && (
+                        <img
+                          src={organisation.logoUrl}
+                          alt={organisation?.name || "Organisation"}
+                          style={{ opacity: orgContactLogoLoaded ? 1 : 0, transition: "opacity .2s ease" }}
+                          onLoad={() => setOrgContactLogoLoaded(true)}
+                          onError={() => { setOrgContactLogoBroken(true); setOrgContactLogoLoaded(true); }}
+                        />
+                      )}
+                      {orgContactLogoBroken && (
+                        <div className={styles.orgLogoFallback}>
+                          {(organisation?.name || "O").charAt(0).toUpperCase()}
+                        </div>
+                      )}
                     </div>
                   )}
                   <div className={styles.orgContactInfo}>
