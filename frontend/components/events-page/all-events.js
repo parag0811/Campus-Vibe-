@@ -59,16 +59,14 @@ export default function AllEvents() {
   const [noEventsMessage, setNoEventsMessage] = useState("");
   const [error, setError] = useState(null);
 
-  // Filters
   const [search, setSearch] = useState("");
-  const [mode, setMode] = useState("all"); // online/offline/hybrid/all
-  const [free, setFree] = useState("all"); // free/paid/all
-  const [upcoming, setUpcoming] = useState("all"); // upcoming/past/all
-  const [sort, setSort] = useState("newest"); // newest/popular
+  const [mode, setMode] = useState("all"); 
+  const [free, setFree] = useState("all"); 
+  const [upcoming, setUpcoming] = useState("all"); 
+  const [sort, setSort] = useState("newest"); 
 
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
-  // Debounce search
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search.trim()), 350);
     return () => clearTimeout(t);
@@ -99,16 +97,28 @@ export default function AllEvents() {
         return "";
       }
     };
+
+    const looksLikeId = (v) =>
+      typeof v === "string" && /^[a-f0-9]{24}$/i.test(v);
+
     return list.map((ev) => {
       const start = ev.start_date || ev.createdAt || Date.now();
+      const nameA = ev?.organisation?.name;
+      const nameB = ev?.created_by_organisation?.name;
+      const nameC = !nameA && !nameB && typeof ev?.created_by_organisation === "string"
+        ? (looksLikeId(ev.created_by_organisation) ? "" : ev.created_by_organisation)
+        : "";
+
+      const orgName = nameA || nameB || nameC || "Organisation";
+
       return {
         id: ev._id,
         image: ev.imageUrl || "/default-event.jpg",
         title: ev.title || "Untitled event",
         date: fmt(start, { weekday: "long", month: "long", day: "numeric" }),
         time: fmt(start, { hour: "numeric", minute: "2-digit" }),
-        orgName: ev?.organisation?.name || ev?.created_by_organisation?.name || "Organisation",
-        promoted: !!ev.promoted
+        orgName,
+        promoted: !!ev.promoted,
       };
     });
   };

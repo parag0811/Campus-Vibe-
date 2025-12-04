@@ -408,8 +408,34 @@ exports.getEventsFiltered = async (req, res, next) => {
     });
 
     pipeline.push({
+      $lookup: {
+        from: "organisations",
+        localField: "created_by_organisation",
+        foreignField: "_id",
+        as: "orgDoc",
+      },
+    });
+
+    pipeline.push({
+      $addFields: {
+        organisation: {
+          $let: {
+            vars: { o: { $arrayElemAt: ["$orgDoc", 0] } },
+            in: {
+              _id: "$$o._id",
+              name: "$$o.name",
+              contact_email: "$$o.contact_email",
+              imageName: "$$o.imageName",
+            },
+          },
+        },
+      },
+    });
+
+    pipeline.push({
       $project: {
         analyticsData: 0,
+        orgDoc: 0,
       },
     });
 
@@ -419,7 +445,6 @@ exports.getEventsFiltered = async (req, res, next) => {
 
     const events = await Event.aggregate(pipeline).allowDiskUse(true);
 
-    // Attach signed URLs
     for (let ev of events) {
       if (ev.posterImage) {
         const command = new GetObjectCommand({

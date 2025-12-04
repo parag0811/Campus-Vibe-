@@ -6,6 +6,11 @@ import styles from "./featured-events.module.css";
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
 const EventCard = ({ id, image, title, date, time, orgName }) => {
+  const [loaded, setLoaded] = useState(false);
+  const [broken, setBroken] = useState(false);
+
+  const src = broken ? "/default-event.jpg" : image;
+
   return (
     <div className={styles.cardWrapper}>
       <Link
@@ -15,7 +20,18 @@ const EventCard = ({ id, image, title, date, time, orgName }) => {
       >
         <div className={styles.card}>
           <div className={styles.imageContainer}>
-            <img src={image} alt={title} className={styles.image} />
+            {!loaded && <div className={styles.posterSkeleton} />}
+            <img
+              src={src}
+              alt={title}
+              className={`${styles.image} ${loaded ? styles.visible : styles.hidden}`}
+              loading="lazy"
+              onLoad={() => setLoaded(true)}
+              onError={() => {
+                setBroken(true);
+                setLoaded(true);
+              }}
+            />
           </div>
           <div className={styles.cardContent}>
             <h3 className={styles.eventTitle}>{title}</h3>
