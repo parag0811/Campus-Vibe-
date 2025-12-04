@@ -10,7 +10,20 @@ const organisation_controller = require("../controllers/organisation-controller.
 const upload = require("../middleware/upload.js");
 const earningsController = require("../controllers/earnings-controller.js");
 
-// Validators
+function normalizeOrgBody(req, _res, next) {
+  req.body = req.body || {};
+  const setIfMissing = (k, v) => {
+    if (v !== undefined && req.body[k] === undefined) req.body[k] = v;
+  };
+  setIfMissing("bank.accountName", req.body.bankAccountName);
+  setIfMissing("bank.accountNumber", req.body.bankAccountNumber);
+  setIfMissing("bank.ifsc", (req.body.bankIfsc || "").toUpperCase().trim());
+  setIfMissing("bank.address", req.body.bankAddress);
+  setIfMissing("kyc.fullName", req.body["kyc.fullName"]);
+  setIfMissing("kyc.phoneNumber", req.body["kyc.phoneNumber"]);
+  next();
+}
+
 const organisationValidate = [
   body("name")
     .notEmpty().trim().withMessage("Name field can not be empty.")
@@ -34,6 +47,7 @@ const kycValidate = [
     .matches(/^[0-9+\-\s]{6,15}$/).withMessage("Enter a valid phone number."),
 ];
 
+// Indian account number: digits only, 9–18; IFSC: ABCD0XXXXXX; address min 5
 const bankValidate = [
   body("bank.accountName")
     .notEmpty().withMessage("Bank account name required.")
@@ -41,7 +55,7 @@ const bankValidate = [
     .trim().escape(),
   body("bank.accountNumber")
     .notEmpty().withMessage("Bank account number required.")
-    .matches(/^[0-9A-Z]{6,34}$/).withMessage("Invalid account number.")
+    .matches(/^[0-9]{9,18}$/).withMessage("Invalid account number.")
     .trim(),
   body("bank.ifsc")
     .notEmpty().withMessage("IFSC required.")
@@ -49,7 +63,7 @@ const bankValidate = [
     .trim().toUpperCase(),
   body("bank.address")
     .notEmpty().withMessage("Bank branch address required.")
-    .isLength({ min: 4, max: 120 }).withMessage("Address length invalid.")
+    .isLength({ min: 5, max: 120 }).withMessage("Address length invalid.")
     .trim().escape()
 ];
 
@@ -70,7 +84,7 @@ const bankUpdateValidate = [
     .trim().escape(),
   body("bank.accountNumber")
     .optional()
-    .matches(/^[0-9A-Z]{6,34}$/).withMessage("Invalid account number.")
+    .matches(/^[0-9]{9,18}$/).withMessage("Invalid account number.")
     .trim(),
   body("bank.ifsc")
     .optional()
@@ -78,7 +92,7 @@ const bankUpdateValidate = [
     .trim().toUpperCase(),
   body("bank.address")
     .optional()
-    .isLength({ min: 4, max: 120 }).withMessage("Address length invalid.")
+    .isLength({ min: 5, max: 120 }).withMessage("Address length invalid.")
     .trim().escape()
 ];
 
@@ -89,7 +103,6 @@ router.get(
   organisation_controller.getMyOrganisation
 );
 
-// Create organisation (KYC)
 router.post(
   "/organisationAdmin/create-organisation",
   isAuth,
@@ -97,13 +110,13 @@ router.post(
     { name: "image", maxCount: 1 },
     { name: "document", maxCount: 1 },
   ]),
+  normalizeOrgBody,
   organisationValidate,
   kycValidate,
   bankValidate,
   organisation_controller.createOrganisation
 );
 
-// Update org (owner).
 router.put(
   "/organisationAdmin/update-organisation-detail",
   isAuth,
@@ -112,6 +125,7 @@ router.put(
     { name: "image", maxCount: 1 },
     { name: "document", maxCount: 1 },
   ]),
+  normalizeOrgBody,
   organisationValidate,
   kycUpdateValidate,
   bankUpdateValidate,

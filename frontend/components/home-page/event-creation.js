@@ -14,7 +14,7 @@ export default function EventCreation() {
         <div className={styles.textSection}>
           <h2 className={styles.bannerTitle}>Make your own Event</h2>
           <p className={styles.bannerDesc}>
-            Lorem ipsum dolor sit amet, consectetur adipiscing elit.
+            Create, publish, and manage events effortlessly.
           </p>
           <Link href="/create-organisation" className={styles.createEventBtn}>
             Create Events

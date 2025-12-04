@@ -88,11 +88,38 @@ exports.createOrganisation = async (req, res, next) => {
       bankAccountName,
       bankAccountNumber,
       bankIfsc,
-      bankAddress
+      bankAddress,
     } = req.body;
 
     const kycFullName = kyc.fullName || req.body["kyc.fullName"];
     const kycPhoneNumber = kyc.phoneNumber || req.body["kyc.phoneNumber"];
+
+    const accName = (
+      bankAccountName ??
+      req.body["bank.accountName"] ??
+      req.body.bank?.accountName ??
+      ""
+    ).trim();
+    const accNum = (
+      bankAccountNumber ??
+      req.body["bank.accountNumber"] ??
+      req.body.bank?.accountNumber ??
+      ""
+    ).trim();
+    const ifsc = (
+      bankIfsc ??
+      req.body["bank.ifsc"] ??
+      req.body.bank?.ifsc ??
+      ""
+    )
+      .toUpperCase()
+      .trim();
+    const addr = (
+      bankAddress ??
+      req.body["bank.address"] ??
+      req.body.bank?.address ??
+      ""
+    ).trim();
 
     const imageFile = req.files?.image?.[0];
     const docFile = req.files?.document?.[0];
@@ -102,8 +129,12 @@ exports.createOrganisation = async (req, res, next) => {
       error.statusCode = 422;
       throw error;
     }
-    if (!["image/jpeg", "image/png", "image/webp"].includes(imageFile.mimetype)) {
-      const error = new Error("Only .jpg, .png, or .webp images are allowed for logo.");
+    if (
+      !["image/jpeg", "image/png", "image/webp"].includes(imageFile.mimetype)
+    ) {
+      const error = new Error(
+        "Only .jpg, .png, or .webp images are allowed for logo."
+      );
       error.statusCode = 422;
       throw error;
     }
@@ -113,7 +144,12 @@ exports.createOrganisation = async (req, res, next) => {
       error.statusCode = 422;
       throw error;
     }
-    const allowedDocTypes = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+    const allowedDocTypes = [
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "application/pdf",
+    ];
     if (!allowedDocTypes.includes(docFile.mimetype)) {
       const error = new Error("KYC document must be an image or PDF.");
       error.statusCode = 422;
@@ -126,37 +162,46 @@ exports.createOrganisation = async (req, res, next) => {
       throw error;
     }
 
-    // Bank validations
-    const accName = (bankAccountName || "").trim();
-    const accNum = (bankAccountNumber || "").trim();
-    const ifsc = (bankIfsc || "").trim().toUpperCase();
-    const addr = (bankAddress || "").trim();
+    if (!accName)
+      throw Object.assign(new Error("Bank account name is required."), {
+        statusCode: 422,
+      });
+    if (!/^[0-9]{9,18}$/.test(accNum))
+      throw Object.assign(new Error("Invalid bank account number."), {
+        statusCode: 422,
+      });
+    if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc))
+      throw Object.assign(new Error("Invalid IFSC code."), { statusCode: 422 });
+    if (addr.length < 5)
+      throw Object.assign(new Error("Bank address is too short."), {
+        statusCode: 422,
+      });
 
-    if (!accName) throw Object.assign(new Error("Bank account name is required."), { statusCode: 422 });
-    if (!/^[0-9]{9,18}$/.test(accNum)) throw Object.assign(new Error("Invalid bank account number."), { statusCode: 422 });
-    if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc)) throw Object.assign(new Error("Invalid IFSC code."), { statusCode: 422 });
-    if (addr.length < 5) throw Object.assign(new Error("Bank address is too short."), { statusCode: 422 });
-
-    const randomName = (bytes = 32) => crypto.randomBytes(bytes).toString("hex");
+    const randomName = (bytes = 32) =>
+      crypto.randomBytes(bytes).toString("hex");
     const imageKey = `org/${userId}/${randomName()}`;
     const docKey = `org/${userId}/kyc/${randomName()}`;
 
     const imageBuffer = await sharp(imageFile.buffer)
-      .resize({ height: 200, width: 200, fit: "contain" })
+      .resize(200, 200, { fit: "cover" })
       .toBuffer();
-    await s3.send(new PutObjectCommand({
-      Bucket: process.env.BUCKET_NAME,
-      Key: imageKey,
-      Body: imageBuffer,
-      ContentType: imageFile.mimetype,
-    }));
+    await s3.send(
+      new PutObjectCommand({
+        Bucket: process.env.BUCKET_NAME,
+        Key: imageKey,
+        Body: imageBuffer,
+        ContentType: imageFile.mimetype,
+      })
+    );
 
-    await s3.send(new PutObjectCommand({
-      Bucket: process.env.BUCKET_NAME,
-      Key: docKey,
-      Body: docFile.buffer,
-      ContentType: docFile.mimetype,
-    }));
+    await s3.send(
+      new PutObjectCommand({
+        Bucket: process.env.BUCKET_NAME,
+        Key: docKey,
+        Body: docFile.buffer,
+        ContentType: docFile.mimetype,
+      })
+    );
 
     const organisation = new Organisation({
       createdBy: userId,
@@ -180,7 +225,7 @@ exports.createOrganisation = async (req, res, next) => {
         platformFeePercent: 5,
         minPayoutAmount: 0,
         settlementMode: "manual",
-      }
+      },
     });
 
     await organisation.save();
@@ -220,18 +265,26 @@ exports.updateOrganisationDetail = async (req, res, next) => {
     }
 
     // Map optional bank fields from dot notation if sent that way
-    const bankAccountName = req.body["bank.accountName"] || req.body.bank?.accountName;
-    const bankAccountNumber = req.body["bank.accountNumber"] || req.body.bank?.accountNumber;
-    const bankIfsc = (req.body["bank.ifsc"] || req.body.bank?.ifsc || "").toUpperCase();
+    const bankAccountName =
+      req.body["bank.accountName"] || req.body.bank?.accountName;
+    const bankAccountNumber =
+      req.body["bank.accountNumber"] || req.body.bank?.accountNumber;
+    const bankIfsc = (
+      req.body["bank.ifsc"] ||
+      req.body.bank?.ifsc ||
+      ""
+    ).toUpperCase();
     const bankAddress = req.body["bank.address"] || req.body.bank?.address;
 
     if (bankAccountName) organisation.bank.accountName = bankAccountName.trim();
-    if (bankAccountNumber) organisation.bank.accountNumber = bankAccountNumber.trim();
+    if (bankAccountNumber)
+      organisation.bank.accountNumber = bankAccountNumber.trim();
     if (bankIfsc) organisation.bank.ifsc = bankIfsc.trim();
     if (bankAddress) organisation.bank.address = bankAddress.trim();
 
     const kycFullName = req.body["kyc.fullName"] || req.body.kyc?.fullName;
-    const kycPhoneNumber = req.body["kyc.phoneNumber"] || req.body.kyc?.phoneNumber;
+    const kycPhoneNumber =
+      req.body["kyc.phoneNumber"] || req.body.kyc?.phoneNumber;
     if (kycFullName) organisation.kyc.fullName = kycFullName;
     if (kycPhoneNumber) organisation.kyc.phoneNumber = kycPhoneNumber;
 
@@ -260,7 +313,7 @@ exports.updateOrganisationDetail = async (req, res, next) => {
         .randomBytes(16)
         .toString("hex")}`;
       const imageBuffer = await sharp(imageFile.buffer)
-        .resize({ height: 200, width: 200, fit: "contain" })
+        .resize(200, 200, { fit: "cover" })
         .toBuffer();
       await s3.send(
         new PutObjectCommand({
@@ -311,7 +364,9 @@ exports.updateOrganisationDetail = async (req, res, next) => {
     // Ignore any Razorpay account ID updates; payouts are manual.
 
     await organisation.save();
-    return res.status(200).json({ message: "Organisation information updated successfully." });
+    return res
+      .status(200)
+      .json({ message: "Organisation information updated successfully." });
   } catch (err) {
     if (!err.statusCode) {
       err.statusCode = 500;
@@ -415,7 +470,10 @@ exports.assignAdmin = async (req, res, next) => {
       });
     }
 
-    await new OrganisationAdmin({ user: userId, organisation: organisationId }).save();
+    await new OrganisationAdmin({
+      user: userId,
+      organisation: organisationId,
+    }).save();
 
     await User.updateOne(
       { _id: userId },
@@ -487,11 +545,17 @@ exports.deleteOrganisation = async (req, res, next) => {
       Organisation.exists({ createdBy: userId }),
       User.findById(userId).select("organisation_Admin role").lean(),
     ]);
-    if (!ownerOwnsAny && (!ownerLinks?.organisation_Admin || ownerLinks.organisation_Admin.length === 0)) {
+    if (
+      !ownerOwnsAny &&
+      (!ownerLinks?.organisation_Admin ||
+        ownerLinks.organisation_Admin.length === 0)
+    ) {
       await User.updateOne({ _id: userId }, { $set: { role: "student" } });
     }
 
-    return res.status(200).json({ message: "Organisation deleted successfully." });
+    return res
+      .status(200)
+      .json({ message: "Organisation deleted successfully." });
   } catch (err) {
     if (!err.statusCode) err.statusCode = 500;
     next(err);
@@ -532,7 +596,10 @@ exports.loadAdmins = async (req, res, next) => {
 // random organisations with signed logo URL
 exports.getPublicOrganisations = async (req, res, next) => {
   try {
-    const limit = Math.min(Math.max(parseInt(req.query.limit || "9", 10), 1), 24);
+    const limit = Math.min(
+      Math.max(parseInt(req.query.limit || "9", 10), 1),
+      24
+    );
 
     const orgs = await Organisation.aggregate([
       { $match: { imageName: { $exists: true, $ne: null } } },
@@ -558,7 +625,9 @@ exports.getPublicOrganisations = async (req, res, next) => {
       })
     );
 
-    return res.status(200).json({ organisations: signed, count: signed.length });
+    return res
+      .status(200)
+      .json({ organisations: signed, count: signed.length });
   } catch (err) {
     return res.status(500).json({ message: "Failed to load organisations" });
   }

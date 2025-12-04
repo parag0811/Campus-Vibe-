@@ -58,9 +58,22 @@ export default function CreateOrganisationOnboarding() {
   const showToast = (type, text) => setToast({ show: true, type, text });
   const clearToast = () => setToast({ show: false, type: "info", text: "" });
 
+  const normalizePath = (p) => {
+    if (p === "bank.accountName") return "bankAccountName";
+    if (p === "bank.accountNumber") return "bankAccountNumber";
+    if (p === "bank.ifsc") return "bankIfsc";
+    if (p === "bank.address") return "bankAddress";
+    if (p === "kyc.fullName") return "kyc.fullName";
+    if (p === "kyc.phoneNumber") return "kyc.phoneNumber";
+    return p;
+  };
+
   const onChange = (e) => {
     const { name, value } = e.target;
-    setForm((p) => ({ ...p, [name]: value }));
+    let val = value;
+    if (name === "bankIfsc") val = value.toUpperCase();
+    if (name === "bankAccountNumber") val = value.replace(/[^0-9]/g, "");
+    setForm((p) => ({ ...p, [name]: val }));
     setErrors((p) => ({ ...p, [name]: null }));
   };
 
@@ -103,10 +116,11 @@ export default function CreateOrganisationOnboarding() {
       v.razorpayAccountId = "Invalid Razorpay Account ID.";
     if (!form["kyc.fullName"] || form["kyc.fullName"].trim().length < 2) v["kyc.fullName"] = "Full name is required.";
     if (!form["kyc.phoneNumber"] || !/^[0-9+\-\s]{6,15}$/.test(form["kyc.phoneNumber"])) v["kyc.phoneNumber"] = "Enter a valid phone number.";
-    if (!form.bankAccountName || form.bankAccountName.trim().length < 2) v.bankAccountName = "Account name required.";
-    if (!form.bankAccountNumber || !/^[0-9]{9,18}$/.test(form.bankAccountNumber)) v.bankAccountNumber = "Invalid account number.";
-    if (!form.bankIfsc || !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(form.bankIfsc.trim().toUpperCase())) v.bankIfsc = "Invalid IFSC code.";
-    if (!form.bankAddress || form.bankAddress.trim().length < 5) v.bankAddress = "Address too short.";
+    if (!form.bankAccountName || form.bankAccountName.trim().length < 2) v.bankAccountName = "Bank account name required.";
+    if (!form.bankAccountNumber || !/^[0-9]{9,18}$/.test(form.bankAccountNumber.trim())) v.bankAccountNumber = "Invalid account number.";
+    const ifscUpper = (form.bankIfsc || "").trim().toUpperCase();
+    if (!ifscUpper || !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifscUpper)) v.bankIfsc = "Invalid IFSC.";
+    if (!form.bankAddress || form.bankAddress.trim().length < 5) v.bankAddress = "Address length invalid.";
     if (!image) v.image = "Organisation logo required.";
     if (!documentFile) v.document = "KYC document required.";
     return v;
@@ -149,7 +163,8 @@ export default function CreateOrganisationOnboarding() {
         if (Array.isArray(data?.data)) {
           const map = {};
           data.data.forEach((e) => {
-            if (e.path && !map[e.path]) map[e.path] = e.msg;
+            const key = normalizePath(e.path);
+            if (key && !map[key]) map[key] = e.msg;
           });
           setErrors(map);
         }
