@@ -11,16 +11,20 @@ export default function MainFooter() {
             <h2 className={styles.brandName}>
               Campus <span className={styles.purple}>Vibe</span>
             </h2>
+            <p className={styles.brandTagline}>
+              Discover. Host. Experience.
+            </p>
           </div>
 
           <div className={styles.newsletter}>
             <div className={styles.subscribeForm}>
-              <input
-                type="email"
-                placeholder="Enter your mail"
-                className={styles.emailInput}
-              />
-              <button className={styles.subscribeBtn}>Subscribe</button>
+              <div className={styles.subscribeHeading}>
+                <span className={styles.headingLeft}>Campus</span>
+                <span className={styles.headingRight}>Events</span>
+              </div>
+              <p className={styles.subscribeNote}>
+                Curated happenings from top clubs & campuses.
+              </p>
             </div>
           </div>
         </div>
@@ -33,13 +37,59 @@ export default function MainFooter() {
             <Link href="/about" className={styles.footerLink}>
               About
             </Link>
-            <Link href="/services" className={styles.footerLink}>
+            <Link href="/service" className={styles.footerLink}>
               Services
             </Link>
             <Link href="/contact" className={styles.footerLink}>
               Get in touch
             </Link>
           </nav>
+
+          <div className={styles.infoColumns}>
+            <div className={styles.infoCol}>
+              <div className={styles.infoTitle}>Explore</div>
+              <Link
+                href="/events"
+                className={styles.infoLink}
+              >
+                Upcoming Events
+              </Link>
+              <Link
+                href="/my-events"
+                className={styles.infoLink}
+              >
+                My Tickets
+              </Link>
+              <Link
+                href="/create-organisation"
+                className={styles.infoLink}
+              >
+                Create Organisation
+              </Link>
+            </div>
+
+            <div className={styles.infoCol}>
+              <div className={styles.infoTitle}>Resources</div>
+              <Link
+                href="/verify-email"
+                className={styles.infoLink}
+              >
+                Verify Email
+              </Link>
+              <Link
+                href="/forgot-password"
+                className={styles.infoLink}
+              >
+                Forgot Password
+              </Link>
+              <Link
+                href="/contact"
+                className={styles.infoLink}
+              >
+                Support
+              </Link>
+            </div>
+          </div>
         </div>
 
         <hr className={styles.divider} />
@@ -47,8 +97,6 @@ export default function MainFooter() {
         <div className={styles.footerBottom}>
           <div className={styles.language}>
             <button className={styles.langBtn}>English</button>
-            <button className={styles.langBtn}>French</button>
-            <button className={styles.langBtn}>Hindi</button>
           </div>
 
           <div className={styles.copyright}>

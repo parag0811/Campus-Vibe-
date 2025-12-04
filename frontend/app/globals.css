@@ -15,6 +15,29 @@ body {
   font-family: Arial, Helvetica, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  display: flex;
+  flex-direction: column;
+}
+
+html, body {
+  height: 100%;            /* ensure full viewport height */
+}
+
+/* Make the whole app a flex column so footer can sit at bottom */
+body {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Let main content grow */
+main {
+  flex: 1 0 auto;
+}
+
+/* Push footer to the bottom when there’s extra space */
+footer {
+  margin-top: auto;
+  flex-shrink: 0;
 }
 
 * {
@@ -41,6 +64,13 @@ html {
 .app-main {
   flex: 1;
 }
+
+header {
+  flex-shrink: 0;   
+  width: 100%;
+}
+
+.site-header { flex-shrink: 0; }
 
 @media print {
   header,

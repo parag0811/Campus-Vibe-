@@ -1,170 +1,115 @@
 @import url("https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Lato:ital,wght@0,100;0,300;0,400;0,700;0,900;1,100;1,300;1,400;1,700;1,900&display=swap");
 
 .footer {
-  background-color: #0a0a78; /* Deep blue as shown in the image */
+  background-color: #0a0a78;
   color: white;
   font-family: "Inter";
   padding: 3rem 0 1.5rem;
   width: 100%;
-  margin-top: auto; /* This pushes the footer to the bottom */
-  position: relative; /* Keeps it in the normal flow */
-  z-index: 10; /* Lower than the spinner z-index of 50 */
+  margin-top: auto;
+  position: relative;
+  z-index: 10;
 }
 
-.footerContent {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 0 1rem;
-}
+.footerContent { max-width: 1400px; margin: 0 auto; padding: 0 1rem; }
 
 .footerTop {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 2rem;
-  flex-wrap: wrap;
-  gap: 1.5rem;
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 2rem; flex-wrap: wrap; gap: 1.5rem;
 }
 
-.brandName {
-  font-size: 1.75rem;
-  font-weight: 700;
-  margin: 0;
-}
+.brandName { font-size: 1.75rem; font-weight: 700; margin: 0; }
+.purple { color: #8a2be2; }
 
-.purple {
-  color: #8a2be2;
+.brandTagline {
+  margin-top: .25rem;
+  font-size: .9rem;
+  color: rgba(255,255,255,.85);
+  font-weight: 600;
 }
 
 .subscribeForm {
-  display: flex;
-  max-width: 450px;
-  width: 100%;
+  display: flex; flex-direction: column; align-items: flex-end; justify-content: center;
+  gap: .5rem; max-width: 480px; width: 100%;
 }
 
-.emailInput {
-  flex-grow: 1;
-  padding: 0.75rem 1rem;
-  border: none;
-  border-radius: 4px 0 0 4px;
-  font-size: 1rem;
+/* Improved dual-tone heading to match logo text */
+.subscribeHeading {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  font-weight: 900;
+  font-size: 1.15rem;
+  letter-spacing: .3px;
+  padding: .5rem .9rem;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.15);
+  background: linear-gradient(90deg, rgba(255,255,255,.08), rgba(255,255,255,.04));
+  box-shadow: 0 6px 18px rgba(0,0,0,.08);
+}
+.headingLeft { color: #ffffff; }
+.headingRight { color: #8a2be2; font-weight: 900; }
+
+.subscribeNote {
+  font-size: .85rem;
+  color: rgba(255,255,255,.8);
 }
 
-.subscribeBtn {
-  background-color: #8a2be2;
-  color: white;
-  border: none;
-  border-radius: 0 4px 4px 0;
-  padding: 0 1.5rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color 0.3s;
-}
+.footerMiddle { margin-bottom: 2rem; }
 
-.subscribeBtn:hover {
-  background-color: #7525c7;
-}
-
-.footerMiddle {
-  margin-bottom: 2rem;
-}
-
-.footerNav {
-  display: flex;
-  gap: 2rem;
-  flex-wrap: wrap;
-}
+.footerNav { display: flex; gap: 2rem; flex-wrap: wrap; }
 
 .footerLink {
-  color: white;
+  color: white; text-decoration: none; transition: opacity .3s;
+  font-weight: 700;
+}
+.footerLink:hover { opacity: .8; }
+
+.infoColumns {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0,1fr));
+  gap: 1.2rem;
+  margin-top: 1rem;
+}
+.infoCol { display: flex; flex-direction: column; gap: .4rem; }
+.infoTitle { font-weight: 800; color: #ffffff; margin-bottom: .25rem; }
+.infoLink {
+  color: rgba(255,255,255,.9);
   text-decoration: none;
-  transition: opacity 0.3s;
+  font-weight: 600;
+  font-size: .92rem;
 }
+.infoLink:hover { color: #fff; text-decoration: underline; }
 
-.footerLink:hover {
-  opacity: 0.8;
-}
-
-.divider {
-  border: none;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  margin: 1.5rem 0;
-}
+.divider { border: none; border-top: 1px solid rgba(255,255,255,.1); margin: 1.5rem 0; }
 
 .footerBottom {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: 1fr auto auto;
   align-items: center;
-  flex-wrap: wrap;
   gap: 1rem;
 }
 
-.language {
-  display: flex;
-  gap: 0.5rem;
-}
-
+.language { display: flex; gap: .5rem; }
 .langBtn {
-  background: none;
-  border: none;
-  color: white;
-  font-size: 0.875rem;
-  cursor: pointer;
-  opacity: 0.8;
-  transition: opacity 0.3s;
-  padding: 0.25rem 0.5rem;
+  background: none; border: 1px solid rgba(255,255,255,.25);
+  color: white; font-size: .875rem; cursor: pointer; opacity: .9;
+  padding: .25rem .6rem; border-radius: 8px; font-weight: 700;
 }
+.langBtn:hover { opacity: 1; background: rgba(255,255,255,.08); }
 
-.langBtn:hover {
-  opacity: 1;
-}
+/* Removed social links styles (optional to keep if used elsewhere) */
+.socialLinks { display: none; }
+.socialLink { display: none; }
+.socialIcon { display: none; }
 
-.socialLinks {
-  display: flex;
-  gap: 1rem;
-}
+.copyright { font-size: .875rem; opacity: .85; text-align: right; }
 
-.socialLink {
-  color: white;
-  text-decoration: none;
-}
-
-.socialIcon {
-  width: 30px;
-  height: 30px;
-  border: 1px solid white;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.75rem;
-  transition: background-color 0.3s;
-}
-
-.socialIcon:hover {
-  background-color: rgba(255, 255, 255, 0.1);
-}
-
-.copyright {
-  font-size: 0.875rem;
-  opacity: 0.8;
-}
-
-/* Responsive adjustments */
+/* Responsive */
 @media (max-width: 768px) {
-  .footerTop,
-  .footerBottom {
-    flex-direction: column;
-    align-items: center;
-  }
-
-  .footerNav {
-    flex-direction: column;
-    align-items: center;
-    gap: 1rem;
-  }
-
-  .socialLinks {
-    margin: 1rem 0;
-  }
+  .footerTop, .footerBottom { grid-template-columns: 1fr; flex-direction: column; align-items: center; }
+  .footerNav { flex-direction: column; align-items: center; gap: 1rem; }
+  .infoColumns { grid-template-columns: 1fr; }
+  .subscribeForm { align-items: center; }
+  .copyright { text-align: center; }
 }
