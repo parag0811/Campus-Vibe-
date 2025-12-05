@@ -15,7 +15,7 @@ export default function RegisterPanel() {
   const [fieldErrors, setFieldErrors] = useState([]);
   const inFlight = useRef(false);
 
-  const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5000";
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL;
 
   const validate = () => {
     const errors = [];
@@ -105,9 +105,6 @@ export default function RegisterPanel() {
           <button type="submit" className={styles.signUpButton} disabled={loading}>
             {loading ? "Signing up..." : "Sign Up"}
           </button>
-
-          <div className={styles.divider}><span>Or</span></div>
-          <button type="button" className={styles.googleButton} disabled={loading}>Sign up with Google</button>
         </form>
       </div>
     </div>
