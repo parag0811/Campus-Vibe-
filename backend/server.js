@@ -15,11 +15,7 @@ const ownerSettlementRoute = require("./routes/owner-settlement-route");
 
 const app = express();
 
-app.use(express.json());
-app.use(cookieParser());
-
-const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:3000";
-
+const CLIENT_URL = process.env.CLIENT_URL ;
 app.use(
   cors({
     origin: CLIENT_URL,
@@ -27,6 +23,9 @@ app.use(
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
   })
 );
+app.use(express.json());
+app.use(cookieParser());
+
 
 app.use("/auth", userRoute);
 app.use("/org", orgRoute);

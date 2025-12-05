@@ -48,6 +48,7 @@ export default function RegisterPanel() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: email.trim().toLowerCase(), password, confirmPassword }),
+        credentials: "include",
       });
       const data = await res.json().catch(() => ({}));
 
