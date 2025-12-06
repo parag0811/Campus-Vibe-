@@ -15,17 +15,24 @@ const ownerSettlementRoute = require("./routes/owner-settlement-route");
 
 const app = express();
 
-const CLIENT_URL = process.env.CLIENT_URL ;
-app.use(
-  cors({
-    origin: CLIENT_URL,
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
-  })
-);
+const CLIENT_URL = process.env.CLIENT_URL;
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", process.env.CLIENT_URL);
+  res.header("Access-Control-Allow-Credentials", "true");
+  res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.header(
+    "Access-Control-Allow-Methods",
+    "GET, POST, PUT, DELETE, PATCH, OPTIONS"
+  );
+
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
 app.use(express.json());
 app.use(cookieParser());
-
 
 app.use("/auth", userRoute);
 app.use("/org", orgRoute);

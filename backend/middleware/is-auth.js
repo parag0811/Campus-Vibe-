@@ -24,8 +24,8 @@ module.exports = (req, res, next) => {
     if (err.name === "TokenExpiredError") {
       res.clearCookie("token", {
         httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
+        secure: true,
+        sameSite: "None",
         path: "/",
       });
       err.message = "Session expired. Please log in again!";

@@ -537,8 +537,8 @@ exports.checkLogin = async (req, res, next) => {
 exports.logoutCheck = async (req, res, next) => {
   res.clearCookie("token", {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "Strict",
+    secure: true,
+    sameSite: "None",
     path: "/",
   });
   return res.status(200).json({ message: "Logged Out" });
