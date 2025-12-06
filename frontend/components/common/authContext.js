@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { useToast } from "@/components/common/toast";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL;
 
 const AuthContext = createContext(null);
 
@@ -67,7 +67,7 @@ export function AuthProvider({ children }) {
       setAuthChecked(true);
       return false;
     }
-  }, []);
+  }, [API_BASE]);
 
   // Login function
   const login = useCallback(async (email, password) => {
@@ -100,7 +100,7 @@ export function AuthProvider({ children }) {
       setLoading(false);
       return false;
     }
-  }, [toast, checkAuth]);
+  }, [API_BASE,toast, checkAuth]);
 
   // Logout function
   const logout = useCallback(async () => {
@@ -131,7 +131,7 @@ export function AuthProvider({ children }) {
       setLoading(false);
       return false;
     }
-  }, [toast]);
+  }, [API_BASE, toast]);
 
   // Check auth status on initial load
   useEffect(() => {
