@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import styles from "./featured-events.module.css";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL;
 
 const EventCard = ({ id, image, title, date, time, orgName, promoted }) => {
   const [loaded, setLoaded] = useState(false);

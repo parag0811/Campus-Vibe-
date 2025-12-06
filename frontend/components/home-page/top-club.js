@@ -42,6 +42,7 @@ export default function TopClubsAndCampuses() {
         setLoading(true);
         const res = await fetch(`${API_BASE}/org/organisations/public?limit=12`, {
           cache: "no-store",
+          credentials: "include",
         });
         const data = await res.json();
         if (!res.ok) throw new Error("Failed to load organisations");

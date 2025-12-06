@@ -4,9 +4,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import styles from "./verify.module.css";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL;
+
+if (!API_BASE) {
+  console.error("ERROR: NEXT_PUBLIC_API_URL is NOT defined!");
+}
 
 export default function VerifyEmailPage() {
+
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialEmail = useMemo(
@@ -72,6 +77,7 @@ export default function VerifyEmailPage() {
       setCooldown(60);
       setTimeout(() => otpInputRef.current?.focus(), 60);
     } catch (e) {
+      console.log("API_BASE:", process.env.NEXT_PUBLIC_API_URL);
       setMessage({ type: "error", text: e.message || "Could not send OTP" });
     } finally {
       setLoadingSend(false);

@@ -139,6 +139,7 @@ export default function AllEvents() {
         }
         const q = buildQuery(reset ? 1 : page);
         const res = await fetch(`${API_BASE}/search?${q}`, {
+          credentials: "include",
           headers: { "Cache-Control": "no-cache" }
         });
         const data = await res.json();
