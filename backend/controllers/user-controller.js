@@ -259,6 +259,19 @@ exports.loginUser = async (req, res, next) => {
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
+      try {
+        const sc = res.getHeader && res.getHeader("Set-Cookie");
+        if (sc) {
+          const header = Array.isArray(sc) ? sc.join("; ") : String(sc);
+          const masked = header.replace(/(token=)[^;]+/, "$1<masked>");
+          console.log("[DEBUG] Set-Cookie after login:", masked);
+        } else {
+          console.log("[DEBUG] No Set-Cookie header present after res.cookie call.");
+        }
+      } catch (e) {
+        console.error("[DEBUG] Error reading Set-Cookie header:", e);
+      }
+
     return res.status(200).json({
       success: true,
       message: "Login Successfull!",

@@ -1,7 +1,15 @@
 import { NextResponse } from "next/server";
 
-const protectedRoutes = ["/admin", "/events", "/profile", "/my-events", "/create-organisation"];
+const protectedRoutes = [
+  "/admin",
+  "/events",
+  "/profile",
+  "/my-events",
+  "/create-organisation",
+];
+
 const ownerRoutes = ["/owner"];
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL;
 
 function match(pathname, base) {
@@ -13,13 +21,11 @@ async function fetchWithAuth(path, cookieHeader) {
     method: "GET",
     cache: "no-store",
     headers: {
-      Cookie: cookieHeader || "",
-      "User-Agent": "next-middleware",
+      Cookie: cookieHeader,
     },
   });
 }
 
-// Check org admin status
 async function isOrgAdmin(cookieHeader) {
   const endpoints = [
     "/org/organisationAdminOwner/is-member",
@@ -29,26 +35,24 @@ async function isOrgAdmin(cookieHeader) {
     "/organisation-admin/is-member",
   ];
 
-  for (const path of endpoints) {
+  for (const ep of endpoints) {
     try {
-      const res = await fetchWithAuth(path, cookieHeader);
+      const res = await fetchWithAuth(ep, cookieHeader);
 
-      if (res.status === 401) return false; // not logged in
+      if (res.status === 401) return false;
       if (!res.ok) continue;
 
       const data = await res.json().catch(() => ({}));
 
-      const ok =
+      if (
         data?.orgAdmin ||
         data?.isMember ||
         data?.member ||
-        data?.isAdmin ||
-        data?.admin ||
         data?.owner ||
-        data?.isOwner;
-
-      if (ok) return true;
-    } catch (err) {
+        data?.isAdmin
+      )
+        return true;
+    } catch {
       // try next endpoint
     }
   }
@@ -62,39 +66,40 @@ export async function middleware(request) {
   const token = request.cookies.get("token")?.value;
   const cookieHeader = request.headers.get("cookie") || "";
 
-  // Public auth pages
+  // Public pages
   if (pathname.startsWith("/login") || pathname.startsWith("/register")) {
     if (token) return NextResponse.redirect(new URL("/", request.url));
     return NextResponse.next();
   }
 
-  // Public password reset pages
-  if (pathname.startsWith("/forgot-password") || pathname.startsWith("/reset-password")) {
+  if (
+    pathname.startsWith("/forgot-password") ||
+    pathname.startsWith("/reset-password")
+  ) {
     return NextResponse.next();
   }
 
-  // Owner routes 
-  const isOwnerRoute = ownerRoutes.some((r) => match(pathname, r));
-  if (isOwnerRoute) {
-    if (!token) return NextResponse.redirect(new URL("/login", request.url));
-    return NextResponse.next();
+  // Owner routes
+  if (ownerRoutes.some((r) => match(pathname, r))) {
+     return NextResponse.next();
   }
 
   // Admin dashboard
-  const isAdminRoute = match(pathname, "/admin");
-  if (isAdminRoute) {
-    if (!token) return NextResponse.redirect(new URL("/login", request.url));
+  if (match(pathname, "/admin")) {
+     if (!token) return NextResponse.next();
 
-    const ok = await isOrgAdmin(cookieHeader);
-    if (!ok) return NextResponse.redirect(new URL("/", request.url));
+     const ok = await isOrgAdmin(cookieHeader);
+     if (!ok) return NextResponse.redirect(new URL("/", request.url));
   }
 
-  // All other protected routes
+  // Standard protected routes
   const isProtected =
-    !isAdminRoute && !isOwnerRoute && protectedRoutes.some((r) => match(pathname, r));
+    protectedRoutes.some((r) => match(pathname, r)) &&
+    !match(pathname, "/admin") &&
+    !ownerRoutes.some((r) => match(pathname, r));
 
   if (isProtected && !token) {
-    return NextResponse.redirect(new URL("/login", request.url));
+     return NextResponse.next();
   }
 
   return NextResponse.next();

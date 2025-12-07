@@ -15,27 +15,19 @@ const ownerSettlementRoute = require("./routes/owner-settlement-route");
 
 const app = express();
 
+// When running behind proxies (Render, Vercel, etc.) express should trust
+// the first proxy so `secure` and protocol detection work properly.
+app.set("trust proxy", 1);
+
 const CLIENT_URL = process.env.CLIENT_URL;
-app.use(cors({
-  origin: CLIENT_URL,
-  credentials: true
-}));
 
-app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, Cache-Control");
-  next();
-});
 
-app.use((req, res, next) => {
-  if (req.method === "OPTIONS") {
-    res.header("Access-Control-Allow-Origin", CLIENT_URL);
-    res.header("Access-Control-Allow-Credentials", "true");
-    res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS");
-    res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, Cache-Control");
-    return res.sendStatus(200);
-  }
-  next();
-});
+// Use `cors` middleware to correctly set Access-Control-Allow-* headers and
+// support credentials. This avoids subtle header mismatches that block
+// browser cookies in cross-origin deployments.
+app.use(
+  cors({ origin: CLIENT_URL, credentials: true, methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"], allowedHeaders: ["Content-Type", "Authorization", "Cache-Control"] })
+);
 
 app.use(express.json());
 app.use(cookieParser());
