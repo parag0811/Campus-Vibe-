@@ -69,6 +69,19 @@ export async function middleware(request) {
   // Public pages
   if (pathname.startsWith("/login") || pathname.startsWith("/register")) {
     if (token) return NextResponse.redirect(new URL("/", request.url));
+
+    if (cookieHeader) {
+      try {
+        const res = await fetchWithAuth("/auth/check-login", cookieHeader);
+        if (res && res.ok) {
+          const data = await res.json().catch(() => ({}));
+          if (data.loggedIn) return NextResponse.redirect(new URL("/", request.url));
+        }
+      } catch (e) {
+        // ignore errors and allow the request
+      }
+    }
+
     return NextResponse.next();
   }
 

@@ -227,7 +227,7 @@ exports.loginUser = async (req, res, next) => {
       throw error;
     }
 
-    if (!user.isVerified) {trolle
+    if (!user.isVerified) {
       return res.status(403).json({
         success: false,
         code: "EMAIL_NOT_VERIFIED",
@@ -254,23 +254,9 @@ exports.loginUser = async (req, res, next) => {
       httpOnly: true,
       secure: true,
       sameSite: "None",
-      domain: "campus-vibe-backend.onrender.com",
-      path : "/",
+      path: "/",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
-
-      try {
-        const sc = res.getHeader && res.getHeader("Set-Cookie");
-        if (sc) {
-          const header = Array.isArray(sc) ? sc.join("; ") : String(sc);
-          const masked = header.replace(/(token=)[^;]+/, "$1<masked>");
-          console.log("[DEBUG] Set-Cookie after login:", masked);
-        } else {
-          console.log("[DEBUG] No Set-Cookie header present after res.cookie call.");
-        }
-      } catch (e) {
-        console.error("[DEBUG] Error reading Set-Cookie header:", e);
-      }
 
     return res.status(200).json({
       success: true,
@@ -459,7 +445,7 @@ exports.forgotPassword = async (req, res) => {
 
     await user.save();
 
-    const baseUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+    const baseUrl = process.env.CLIENT_URL;
     const resetURL = `${baseUrl.replace(/\/$/, "")}/reset-password/${token}`;
 
     await sendEmail(
@@ -554,7 +540,6 @@ exports.logoutCheck = async (req, res, next) => {
     httpOnly: true,
     secure: true,
     sameSite: "None",
-    domain : "campus-vibe-backend.onrender.com",
     path: "/",
   });
   return res.status(200).json({ message: "Logged Out" });
