@@ -26,6 +26,7 @@ module.exports = (req, res, next) => {
         httpOnly: true,
         secure: true,
         sameSite: "None",
+        domain : "campus-vibe-backend.onrender.com",
         path: "/",
       });
       err.message = "Session expired. Please log in again!";

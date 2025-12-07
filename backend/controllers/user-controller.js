@@ -227,7 +227,7 @@ exports.loginUser = async (req, res, next) => {
       throw error;
     }
 
-    if (!user.isVerified) {
+    if (!user.isVerified) {trolle
       return res.status(403).json({
         success: false,
         code: "EMAIL_NOT_VERIFIED",
@@ -252,8 +252,10 @@ exports.loginUser = async (req, res, next) => {
 
     res.cookie("token", token, {
       httpOnly: true,
-      sameSite: "None",
       secure: true,
+      sameSite: "None",
+      domain: "campus-vibe-backend.onrender.com",
+      path : "/",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
@@ -539,6 +541,7 @@ exports.logoutCheck = async (req, res, next) => {
     httpOnly: true,
     secure: true,
     sameSite: "None",
+    domain : "campus-vibe-backend.onrender.com",
     path: "/",
   });
   return res.status(200).json({ message: "Logged Out" });
