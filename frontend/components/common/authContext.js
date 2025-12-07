@@ -1,6 +1,12 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+} from "react";
 import { useToast } from "@/components/common/toast";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL;
@@ -8,11 +14,9 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL;
 const AuthContext = createContext(null);
 
 export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error("useAuth must be used within an AuthProvider");
-  }
-  return context;
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error("useAuth must be used within an AuthProvider");
+  return ctx;
 };
 
 export function AuthProvider({ children }) {
@@ -21,148 +25,122 @@ export function AuthProvider({ children }) {
   const [authChecked, setAuthChecked] = useState(false);
   const { toast } = useToast();
 
-  // Check if user is logged in - using useCallback to maintain reference
+  // FIXED checkAuth
   const checkAuth = useCallback(async () => {
-    if (!navigator.onLine) {
-      console.log("Offline: Skipping auth check");
-      setLoading(false);
-      return false;
-    }
-
     try {
       const res = await fetch(`${API_BASE}/auth/check-login`, {
         credentials: "include",
-        headers: {
-          "Cache-Control": "no-cache",
-        },
+        headers: { "Cache-Control": "no-cache" },
       });
-      
+
       if (!res.ok) {
         setUser(null);
         setLoading(false);
         setAuthChecked(true);
         return false;
       }
-      
+
       const data = await res.json();
-      
       if (data.loggedIn) {
         setUser({
           id: data.userId,
-          role: data.userRole
+          role: data.userRole,
         });
-        setLoading(false);
-        setAuthChecked(true);
-        return true;
       } else {
         setUser(null);
-        setLoading(false);
-        setAuthChecked(true);
-        return false;
       }
-    } catch (error) {
-      console.error("Auth check failed:", error);
+
+      setLoading(false);
+      setAuthChecked(true);
+      return data.loggedIn;
+    } catch (err) {
+      console.error("Auth check failed:", err);
       setUser(null);
       setLoading(false);
       setAuthChecked(true);
       return false;
     }
-  }, [API_BASE]);
+  }, []); 
 
-  // Login function
-  const login = useCallback(async (email, password) => {
-    setLoading(true);
-    try {
-      const res = await fetch(`${API_BASE}/auth/login-user`, {
-        method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          "Cache-Control": "no-cache",
-        },
-        body: JSON.stringify({ email, password }),
-        credentials: "include",
-      });
+  const login = useCallback(
+    async (email, password) => {
+      setLoading(true);
+      try {
+        const res = await fetch(`${API_BASE}/auth/login-user`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Cache-Control": "no-cache",
+          },
+          body: JSON.stringify({ email, password }),
+          credentials: "include",
+        });
 
-      const data = await res.json();
+        const data = await res.json();
 
-      if (!res.ok) {
-        toast.error(data.message || "Login failed. Please try again.");
+        if (!res.ok) {
+          toast.error(data.message || "Login failed.");
+          setLoading(false);
+          return false;
+        }
+
+        toast.success("Login successful!");
+        await checkAuth(); 
+        return true;
+      } catch (err) {
+        console.error("Login error:", err);
+        toast.error("Network error.");
         setLoading(false);
         return false;
       }
+    },
+    [toast, checkAuth]
+  );
 
-      toast.success(data.message || "Login successful!");
-      await checkAuth(); // Refresh user state
-      return true;
-    } catch (error) {
-      console.error("Login error:", error);
-      toast.error("Network error. Please try again later.");
-      setLoading(false);
-      return false;
-    }
-  }, [API_BASE,toast, checkAuth]);
-
-  // Logout function
   const logout = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch(`${API_BASE}/auth/logout`, {
         method: "POST",
         credentials: "include",
-        headers: {
-          "Cache-Control": "no-cache",
-        },
+        headers: { "Cache-Control": "no-cache" },
       });
 
       if (!res.ok) {
         const data = await res.json();
-        toast.error(data.message || "Logout failed. Please try again.");
+        toast.error(data.message || "Logout failed.");
         setLoading(false);
         return false;
       }
 
       setUser(null);
-      toast.success("Logged out successfully");
+      toast.success("Logged out.");
       setLoading(false);
       return true;
-    } catch (error) {
-      console.error("Logout error:", error);
-      toast.error("Network error. Please try again later.");
+    } catch (err) {
+      console.error("Logout error:", err);
+      toast.error("Network error.");
       setLoading(false);
       return false;
     }
-  }, [API_BASE, toast]);
+  }, [toast]);
 
-  // Check auth status on initial load
   useEffect(() => {
-    let isMounted = true;
-    
-    const initialAuthCheck = async () => {
-      if (isMounted) {
-        await checkAuth();
-      }
-    };
-
-    initialAuthCheck();
-    
-    return () => {
-      isMounted = false;
-    };
+    checkAuth();
   }, [checkAuth]);
 
-  // Value to provide through the context
-  const value = {
-    user,
-    loading,
-    authChecked,
-    login,
-    logout,
-    isAuthenticated: !!user,
-    checkAuth
-  };
-
   return (
-    <AuthContext.Provider value={value}>
+    <AuthContext.Provider
+      value={{
+        user,
+        loading,
+        authChecked,
+        login,
+        logout,
+        isAuthenticated: !!user,
+        checkAuth,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
