@@ -28,11 +28,7 @@ async function fetchWithAuth(path, cookieHeader) {
 
 async function isOrgAdmin(cookieHeader) {
   const endpoints = [
-    "/org/organisationAdminOwner/is-member",
-    "/org/organisationAdmin/organisation/is-member",
-    "/org/organisationAdmin/is-member",
     "/org-admin/organisation/is-member",
-    "/organisation-admin/is-member",
   ];
 
   for (const ep of endpoints) {

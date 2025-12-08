@@ -40,11 +40,7 @@ export default function MainHeader() {
       return;
     }
     const endpoints = [
-      "/org/organisationAdminOwner/is-member",
-      "/org/organisationAdmin/organisation/is-member",
-      "/org/organisationAdmin/is-member",
       "/org-admin/organisation/is-member",
-      "/organisation-admin/is-member",
     ];
     const headers = { "Cache-Control": "no-cache" };
     for (const ep of endpoints) {

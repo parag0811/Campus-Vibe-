@@ -5,30 +5,31 @@ module.exports = function isSiteOwner(req, res, next) {
     ? String(process.env.OWNER_EMAIL).toLowerCase()
     : null;
 
-  // Prefer values from req.user when present
   let email = req.user?.email || null;
   let role = req.user?.role || null;
 
-  // Fallback: read from JWT cookie (base64url-safe + verified)
   if ((!email || !role) && req.cookies?.token) {
     try {
       const decoded = jwt.verify(req.cookies.token, process.env.JWT_SECRET);
       email = email || decoded.email || decoded.userEmail || null;
       role = role || decoded.userRole || decoded.role || null;
     } catch {
-      // ignore decode errors; will handle below
+      // ignore decode errors; will handle below hehe
     }
   }
 
   const emailLc = email ? String(email).toLowerCase() : null;
   const roleLc = role ? String(role).toLowerCase() : null;
+  if (OWNER_EMAIL) {
+    if (emailLc === OWNER_EMAIL) return next();
+    // If we couldn't read an identity, respond 401; otherwise 403
+    if (!emailLc && !roleLc) return res.status(401).json({ message: "Unauthorized" });
+    return res.status(403).json({ message: "Forbidden" });
+  }
 
   const roleOk = !!roleLc && ["owner", "superadmin", "platformowner"].includes(roleLc);
-  const emailOk = !!OWNER_EMAIL && !!emailLc && emailLc === OWNER_EMAIL;
+  if (roleOk) return next();
 
-  if (roleOk || emailOk) return next();
-
-  // If we couldn’t read identity at all, treat as unauthorized
   if (!emailLc && !roleLc) {
     return res.status(401).json({ message: "Unauthorized" });
   }
