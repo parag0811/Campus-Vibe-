@@ -35,8 +35,7 @@ module.exports = async function sendEmail(to, subject, text) {
     const fromAddress = process.env.SMTP_FROM;
     if (!fromAddress) throw new Error("SMTP_FROM is missing");
 
-    console.log("Using FROM:", fromAddress);
-    console.log("Using USER:", process.env.SMTP_USER);
+    // Removed debug logs for FROM and USER to avoid leaking sensitive info in logs
 
     const t = getTransporter();
 

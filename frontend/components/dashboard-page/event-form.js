@@ -163,23 +163,13 @@ const EventForm = () => {
       setErrors((prev) => ({ ...prev, posterImage: "Image must be < 5MB." }));
       return;
     }
-    const img = new Image();
-    img.onload = () => {
-      const ratio = img.width / img.height;
-      if (Math.abs(ratio - 1.25) > 0.08) {
-        setErrors((prev) => ({
-          ...prev,
-          posterImage: "Tip: Use near 5:4 (e.g. 1250x1000) for best crop.",
-        }));
-      } else {
-        setErrors((prev) => ({ ...prev, posterImage: "" }));
-      }
-    };
-    img.src = URL.createObjectURL(file);
-    setFormData((prev) => ({ ...prev, posterImage: file }));
-    const reader = new FileReader();
-    reader.onloadend = () => setImagePreview(reader.result);
-    reader.readAsDataURL(file);
+      // Accept any image size/aspect ratio. Clear any posterImage errors and store file as-is.
+      setErrors((prev) => ({ ...prev, posterImage: "" }));
+      setFormData((prev) => ({ ...prev, posterImage: file }));
+      const reader = new FileReader();
+      reader.onloadend = () => setImagePreview(reader.result);
+      reader.readAsDataURL(file);
+    
   };
 
   const validateRequired = () => {
@@ -504,7 +494,7 @@ const EventForm = () => {
                           <div className={styles.uploadPlaceholderBox}>
                             <span style={{ fontSize: "1.8rem" }}>🖼️</span>
                             <span>
-                              Upload a 5:4 poster (Recommended: 1250 x 1000px)
+                              Upload poster — any size. Preview will be cropped to fit.
                             </span>
                           </div>
                         </div>

@@ -99,7 +99,6 @@ exports.sendVerificationOTP = async (req, res) => {
       message: "Verification OTP sent to email.",
     });
   } catch (error) {
-    console.error("sendVerificationOTP error:", error);
     return res.status(500).json({ success: false, message: "Server error" });
   }
 };

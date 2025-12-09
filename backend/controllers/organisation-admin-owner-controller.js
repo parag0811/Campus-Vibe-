@@ -91,21 +91,18 @@ exports.createEvent = async (req, res, next) => {
 
     const imageName = randomImageName();
 
-    const buffer = await sharp(req.file.buffer)
-      .resize({ width: 1000, height: 800, fit: "cover", position: "attention" }) // 5:4, no letterboxing
-      .toBuffer();
-
+    // Store uploaded image as-is (no resizing, no aspect ratio enforcement)
     const params = {
       Bucket: process.env.BUCKET_NAME,
       Key: imageName,
-      Body: buffer,
+      Body: file.buffer,
       ContentType: file.mimetype,
     };
 
     const command = new PutObjectCommand(params);
     await s3.send(command);
 
-    console.log("IMage has been sent to AWS.");
+    console.log("Image has been sent to AWS.");
 
     const {
       title,
@@ -268,48 +265,40 @@ exports.editCreatedEvent = async (req, res, next) => {
     event.max_attendees = max_attendees || event.max_attendees;
     event.organiser_contact = organiser_contact || event.organiser_contact;
 
-    if (req.file) {
-      if (event.posterImage) {
-        const deleteParams = {
+      if (req.file) {
+        if (event.posterImage) {
+          const deleteParams = {
+            Bucket: process.env.BUCKET_NAME,
+            Key: event.posterImage,
+          };
+          await s3.send(new DeleteObjectCommand(deleteParams));
+        }
+
+        const file = req.file;
+
+        if (!file || !["image/jpeg", "image/png", "image/webp"].includes(file.mimetype)) {
+          const error = new Error("Only .jpg, .png, or .webp images are allowed.");
+          error.statusCode = 422;
+          throw error;
+        }
+
+        // Do not enforce aspect ratio or resize. Store the uploaded file as-is.
+        const randomImageName = (bytes = 32) => crypto.randomBytes(bytes).toString("hex");
+        const imageName = randomImageName();
+
+        const uploadParams = {
           Bucket: process.env.BUCKET_NAME,
-          Key: event.posterImage,
+          Key: imageName,
+          Body: file.buffer,
+          ContentType: file.mimetype,
         };
-        await s3.send(new DeleteObjectCommand(deleteParams));
+
+        const command = new PutObjectCommand(uploadParams);
+
+        await s3.send(command);
+
+        event.posterImage = imageName;
       }
-
-      const file = req.file;
-
-      if (
-        !file ||
-        !["image/jpeg", "image/png", "image/webp"].includes(file.mimetype)
-      ) {
-        const error = new Error(
-          "Only .jpg, .png, or .webp images are allowed."
-        );
-        error.statusCode = 422;
-        throw error;
-      }
-
-      const randomImageName = (bytes = 32) =>
-        crypto.randomBytes(bytes).toString("hex");
-      const imageName = randomImageName();
-      const buffer = await sharp(req.file.buffer)
-        .resize({ width: 1000, height: 800, fit: "cover", position: "attention" }) // 5:4, no letterboxing
-        .toBuffer();
-
-      const uploadParams = {
-        Bucket: process.env.BUCKET_NAME,
-        Key: imageName,
-        Body: buffer,
-        ContentType: file.mimetype,
-      };
-
-      const command = new PutObjectCommand(uploadParams);
-
-      await s3.send(command);
-
-      event.posterImage = imageName;
-    }
 
     await event.save();
     return res.status(200).json({ message: "Event updated successfully!" });

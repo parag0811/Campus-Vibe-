@@ -126,6 +126,7 @@
   overflow: visible;
   display: flex;
   flex-direction: column;
+  align-items: center; /* center the fixed-width poster */
 }
 
 .cardWrapper:hover {
@@ -135,13 +136,17 @@
 
 .posterBox {
   position: relative;
-  width: 100%;
-  aspect-ratio: 5 / 4;
+  width: 300px; /* fixed card width (increased) */
+  max-width: 100%;
+  aspect-ratio: 4 / 5; /* portrait card */
   border-radius: 18px;
   overflow: hidden;
-  background: transparent;
+  background: #fff; /* white card */
   display: block;
+  margin: 0 auto;
   line-height: 0;
+  box-shadow: 0 14px 40px rgba(17,24,39,0.18);
+  transition: transform .25s ease, box-shadow .25s ease;
 }
 
 .posterImg {
@@ -170,9 +175,13 @@
 }
 
 .cardContent {
-  padding: .75rem .25rem .25rem;
+  padding: .5rem .25rem .25rem;
   display: flex;
   flex-direction: column;
+  align-items: center; /* align text under centered poster */
+  text-align: center;
+  width: 300px;
+  max-width: 100%;
 }
 
 .eventTitle {

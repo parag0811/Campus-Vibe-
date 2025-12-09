@@ -5,7 +5,7 @@ import { useToast } from "@/components/common/toast";
 import { useAuth } from "@/components/common/authContext";
 import styles from "./EventDetail.module.css";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL;
 
 const EventDetailPage = () => {
   const [event, setEvent] = useState(null);
@@ -68,7 +68,10 @@ const EventDetailPage = () => {
     img.src = event.posterUrl;
     img.onload = () => setHeroLoaded(true);
     img.onerror = () => setHeroLoaded(true);
-    return () => { img.onload = null; img.onerror = null; };
+    return () => {
+      img.onload = null;
+      img.onerror = null;
+    };
   }, [event?.posterUrl]);
 
   const handleRegistration = async () => {
@@ -250,12 +253,18 @@ const EventDetailPage = () => {
 
         <div className={styles.heroWrapper}>
           {/* LEFT POSTER */}
-          <div className={styles.posterBox}
-            style={{
-              backgroundImage: event.posterUrl ? `url(${event.posterUrl})` : "none",
-            }}
-          >
+          <div className={styles.posterBox}>
             {!heroLoaded && <div className={styles.posterBoxSkeleton}></div>}
+
+            {event.posterUrl && (
+              <img
+                src={event.posterUrl}
+                alt="Event Poster"
+                className={styles.posterImg}
+                onLoad={() => setHeroLoaded(true)}
+                onError={() => setHeroLoaded(true)}
+              />
+            )}
           </div>
 
           {/* RIGHT SIDE */}
@@ -264,8 +273,12 @@ const EventDetailPage = () => {
 
             <div className={styles.quickMeta}>
               <span>{formatDate(event.start_date)}</span>
-              {event.end_date && <span>Ends: {formatDate(event.end_date)}</span>}
-              <span>{event.mode?.[0]?.toUpperCase() + event.mode?.slice(1)}</span>
+              {event.end_date && (
+                <span>Ends: {formatDate(event.end_date)}</span>
+              )}
+              <span>
+                {event.mode?.[0]?.toUpperCase() + event.mode?.slice(1)}
+              </span>
               <span>{event.venue}</span>
               <span>{isFree() ? "Free" : `₹${event.price}`}</span>
             </div>
@@ -278,9 +291,15 @@ const EventDetailPage = () => {
                     <img
                       src={organisation.logoUrl}
                       alt="org"
-                      style={{ opacity: orgLogoLoaded ? 1 : 0, transition: "opacity .2s ease" }}
+                      style={{
+                        opacity: orgLogoLoaded ? 1 : 0,
+                        transition: "opacity .2s ease",
+                      }}
                       onLoad={() => setOrgLogoLoaded(true)}
-                      onError={() => { setOrgLogoBroken(true); setOrgLogoLoaded(true); }}
+                      onError={() => {
+                        setOrgLogoBroken(true);
+                        setOrgLogoLoaded(true);
+                      }}
                     />
                   )}
                   {orgLogoBroken && (
@@ -309,7 +328,9 @@ const EventDetailPage = () => {
                 </p>
 
                 <p className={styles.regDeadline}>
-                  <span style={{ fontWeight: 500 }}>Registration Deadline:</span>{" "}
+                  <span style={{ fontWeight: 500 }}>
+                    Registration Deadline:
+                  </span>{" "}
                   {formatDate(event.registeration_deadline)}
                 </p>
               </div>
@@ -395,14 +416,22 @@ const EventDetailPage = () => {
                 <div className={styles.orgContactBlock}>
                   {organisation?.logoUrl && (
                     <div className={styles.orgContactLogo}>
-                      {!orgContactLogoLoaded && <div className={styles.orgLogoSkeleton} />}
+                      {!orgContactLogoLoaded && (
+                        <div className={styles.orgLogoSkeleton} />
+                      )}
                       {!orgContactLogoBroken && (
                         <img
                           src={organisation.logoUrl}
                           alt={organisation?.name || "Organisation"}
-                          style={{ opacity: orgContactLogoLoaded ? 1 : 0, transition: "opacity .2s ease" }}
+                          style={{
+                            opacity: orgContactLogoLoaded ? 1 : 0,
+                            transition: "opacity .2s ease",
+                          }}
                           onLoad={() => setOrgContactLogoLoaded(true)}
-                          onError={() => { setOrgContactLogoBroken(true); setOrgContactLogoLoaded(true); }}
+                          onError={() => {
+                            setOrgContactLogoBroken(true);
+                            setOrgContactLogoLoaded(true);
+                          }}
                         />
                       )}
                       {orgContactLogoBroken && (
