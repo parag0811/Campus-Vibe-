@@ -43,6 +43,15 @@ export default function MainFooter() {
             <Link href="/contact" className={styles.footerLink}>
               Get in touch
             </Link>
+            <Link href="/privacy-policy" className={styles.footerLink}>
+              Privacy
+            </Link>
+            <Link href="/terms-and-conditions" className={styles.footerLink}>
+              Terms
+            </Link>
+            <Link href="/refund-policy" className={styles.footerLink}>
+              Refunds
+            </Link>
           </nav>
 
           <div className={styles.infoColumns}>

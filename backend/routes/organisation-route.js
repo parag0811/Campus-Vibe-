@@ -35,6 +35,11 @@ const organisationValidate = [
     .notEmpty().withMessage("E-mail field can not be empty.")
     .isEmail().withMessage("Enter a valid email.")
     .trim().toLowerCase().normalizeEmail(),
+  body("razorpayAccountId")
+    .optional()
+    .matches(/^[A-Za-z0-9]{9,15}$/)
+    .withMessage("Razorpay account ID must be 9-15 alphanumeric characters.")
+    .trim(),
 ];
 
 const kycValidate = [
