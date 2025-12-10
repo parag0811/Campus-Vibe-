@@ -128,19 +128,19 @@ exports.createEvent = async (req, res, next) => {
       throw err;
     }
     if (regDt < now) {
-      const err = new Error("Registration deadline cannot be in the past.");
+      const err = new Error("Registration deadline cannot be in the past (date/time).");
       err.statusCode = 422;
       throw err;
     }
     if (regDt > startDt) {
       const err = new Error(
-        "Registration deadline must be before or equal to event start."
+        "Registration deadline must be before or equal to the event start date/time."
       );
       err.statusCode = 422;
       throw err;
     }
     if (endDt < startDt) {
-      const err = new Error("End date must be on or after start date.");
+      const err = new Error("End date/time must be on or after the start date/time.");
       err.statusCode = 422;
       throw err;
     }
@@ -237,19 +237,19 @@ exports.editCreatedEvent = async (req, res, next) => {
       throw err;
     }
     if (regDt < now) {
-      const err = new Error("Registration deadline cannot be in the past.");
+      const err = new Error("Registration deadline cannot be in the past (date/time).");
       err.statusCode = 422;
       throw err;
     }
     if (regDt > startDt) {
       const err = new Error(
-        "Registration deadline must be before or equal to event start."
+        "Registration deadline must be before or equal to the event start date/time."
       );
       err.statusCode = 422;
       throw err;
     }
     if (endDt < startDt) {
-      const err = new Error("End date must be on or after start date.");
+      const err = new Error("End date/time must be on or after the start date/time.");
       err.statusCode = 422;
       throw err;
     }

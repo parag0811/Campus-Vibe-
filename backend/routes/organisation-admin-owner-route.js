@@ -31,11 +31,11 @@ const eventCreationValidations = [
   // Registration Deadline
   body("registeration_deadline")
     .isISO8601()
-    .withMessage("Registration deadline must be a valid ISO date.")
+    .withMessage("Registration deadline must be a valid ISO date/time.")
     .toDate()
     .custom((value) => {
       if (value < new Date()) {
-        throw new Error("Registration deadline must not be in the past.");
+        throw new Error("Registration deadline must not be in the past (date/time).");
       }
       return true;
     }),
@@ -43,11 +43,11 @@ const eventCreationValidations = [
   // Start Date
   body("start_date")
     .isISO8601()
-    .withMessage("Start date must be a valid ISO date.")
+    .withMessage("Start date must be a valid ISO date/time.")
     .toDate()
     .custom((value) => {
       if (value < new Date()) {
-        throw new Error("Start date must not be in the past.");
+        throw new Error("Start date must not be in the past (date/time).");
       }
       return true;
     }),
@@ -55,14 +55,14 @@ const eventCreationValidations = [
   // End Date
   body("end_date")
     .isISO8601()
-    .withMessage("End date must be a valid ISO date.")
+    .withMessage("End date must be a valid ISO date/time.")
     .toDate()
     .custom((value, { req }) => {
       if (value < new Date()) {
-        throw new Error("End date must not be in the past.");
+        throw new Error("End date/time must not be in the past.");
       }
       if (new Date(value) <= new Date(req.body.start_date)) {
-        throw new Error("End date must be after the start date.");
+        throw new Error("End date/time must be after the start date/time.");
       }
       return true;
     }),
@@ -141,11 +141,11 @@ const eventEditValidations = [
   // Registration Deadline
   body("registeration_deadline")
     .isISO8601()
-    .withMessage("Registration deadline must be a valid ISO date.")
+    .withMessage("Registration deadline must be a valid ISO date/time.")
     .toDate()
     .custom((value) => {
       if (value < new Date()) {
-        throw new Error("Registration deadline must not be in the past.");
+        throw new Error("Registration deadline must not be in the past (date/time).");
       }
       return true;
     }),
@@ -153,11 +153,11 @@ const eventEditValidations = [
   // Start Date
   body("start_date")
     .isISO8601()
-    .withMessage("Start date must be a valid ISO date.")
+    .withMessage("Start date must be a valid ISO date/time.")
     .toDate()
     .custom((value) => {
       if (value < new Date()) {
-        throw new Error("Start date must not be in the past.");
+        throw new Error("Start date must not be in the past (date/time).");
       }
       return true;
     }),
@@ -165,14 +165,14 @@ const eventEditValidations = [
   // End Date
   body("end_date")
     .isISO8601()
-    .withMessage("End date must be a valid ISO date.")
+    .withMessage("End date must be a valid ISO date/time.")
     .toDate()
     .custom((value, { req }) => {
       if (value < new Date()) {
-        throw new Error("End date must not be in the past.");
+        throw new Error("End date/time must not be in the past.");
       }
       if (new Date(value) <= new Date(req.body.start_date)) {
-        throw new Error("End date must be after the start date.");
+        throw new Error("End date/time must be after the start date/time.");
       }
       return true;
     }),

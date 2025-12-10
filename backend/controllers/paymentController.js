@@ -184,14 +184,15 @@ exports.createOrder = async (req, res, next) => {
       eventId: String(event._id),
     });
   } catch (err) {
+    console.error('createOrder error:', err);
     if (err?.statusCode === 401 || err?.error?.code === "BAD_REQUEST_ERROR") {
       return res.status(502).json({
         success: false,
         message: "Payment gateway auth failed. Check Razorpay keys.",
       });
     }
-    if (!err.statusCode) err.statusCode = 500;
-    next(err);
+    const status = err.statusCode || 500;
+    return res.status(status).json({ success: false, message: status === 500 ? "Internal server error" : "Request failed" });
   }
 };
 
@@ -220,7 +221,8 @@ exports.verifyPayment = async (req, res, next) => {
         await razorpay.payments.capture(razorpay_payment_id, rpPayment.amount, rpPayment.currency || "INR");
         rpPayment = await razorpay.payments.fetch(razorpay_payment_id);
       } catch (e) {
-        return res.status(400).json({ success: false, message: e?.error?.description || "Payment capture failed" });
+        console.error('Razorpay capture error:', e);
+        return res.status(400).json({ success: false, message: "Payment capture failed" });
       }
     }
     if (rpPayment.status !== "captured") {
@@ -297,7 +299,11 @@ exports.verifyPayment = async (req, res, next) => {
     );
 
     return res.json({ success:true, bookingId: payment.receipt, ticketId: ticket._id, eventId: String(payment.event) });
-  } catch (err) { next(err); }
+  } catch (err) {
+    console.error('verifyPayment error:', err);
+    const status = err.statusCode || 500;
+    return res.status(status).json({ success: false, message: status === 500 ? "Internal server error" : "Request failed" });
+  }
 };
 
 exports.getMyTickets = async (req, res, next) => {
@@ -320,8 +326,9 @@ exports.getMyTickets = async (req, res, next) => {
 
     return res.status(200).json({ success: true, data });
   } catch (err) {
-    if (!err.statusCode) err.statusCode = 500;
-    next(err);
+    console.error('getMyTickets error:', err);
+    const status = err.statusCode || 500;
+    return res.status(status).json({ success: false, message: status === 500 ? 'Internal server error' : 'Request failed' });
   }
 };
 
@@ -394,7 +401,8 @@ exports.getTicketDetails = async (req, res, next) => {
       },
     });
   } catch (err) {
-    if (!err.statusCode) err.statusCode = 500;
-    next(err);
+    console.error('getTicketDetails error:', err);
+    const status = err.statusCode || 500;
+    return res.status(status).json({ success: false, message: status === 500 ? 'Internal server error' : 'Request failed' });
   }
 };

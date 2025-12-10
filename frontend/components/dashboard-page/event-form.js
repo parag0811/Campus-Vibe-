@@ -493,7 +493,7 @@ const EventForm = () => {
                         <div className={styles.posterBox}>
                           <div className={styles.uploadPlaceholderBox}>
                             <span style={{ fontSize: "1.8rem" }}>🖼️</span>
-                            <span>
+                            <span style={{padding : 20}}>
                               Upload poster — any size. Preview will be cropped to fit.
                             </span>
                           </div>
@@ -501,6 +501,9 @@ const EventForm = () => {
                       )}
                     </div>
                   </label>
+                  <p className={styles.tip}>
+                    Tip: for best visual results use a portrait image (4:5 ratio), but any image will work.
+                  </p>
                 </div>
                 {errors.posterImage && (
                   <span className={styles.errorText}>{errors.posterImage}</span>

@@ -160,7 +160,8 @@
 .posterBox {
   position: relative;
   width: 100%;
-  aspect-ratio: 4 / 5;    /* fixed container (portrait) */
+  max-width: 600px; 
+  aspect-ratio: 4 / 5; 
   border-radius: 12px;
   overflow: hidden;
   background: #000;       
@@ -299,6 +300,13 @@
   font-size: 0.875rem;
   margin-top: 0.25rem;
   display: block;
+}
+
+.tip {
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+  color: #6b7280;
+  text-align: left;
 }
 
 .errorAlert {
