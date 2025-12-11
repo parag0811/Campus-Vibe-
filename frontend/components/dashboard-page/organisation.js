@@ -14,10 +14,7 @@ const OrganisationPage = () => {
     name: "",
     description: "",
     contact_email: "",
-    bankAccountName: "",
-    bankAccountNumber: "",
-    bankIfsc: "",
-    bankAddress: "",
+    upiId: "",
   });
 
   const [profileImage, setProfileImage] = useState(null);
@@ -57,33 +54,13 @@ const OrganisationPage = () => {
         : !/^\S+@\S+\.\S+$/.test(v.trim())
         ? "Enter valid email."
         : null,
-    bankAccountName: (v) =>
+    upiId: (v) =>
       !v.trim()
-        ? "Account name required."
-        : v.trim().length < 2
-        ? "Min 2 chars."
-        : v.trim().length > 80
-        ? "Max 80 chars."
-        : null,
-    bankAccountNumber: (v) =>
-      !v.trim()
-        ? "Account number required."
-        : !/^[0-9A-Z]{6,34}$/.test(v.trim())
-        ? "Invalid account number."
-        : null,
-    bankIfsc: (v) =>
-      !v.trim()
-        ? "IFSC required."
-        : !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(v.trim().toUpperCase())
-        ? "Invalid IFSC."
-        : null,
-    bankAddress: (v) =>
-      !v.trim()
-        ? "Bank address required."
-        : v.trim().length < 4
-        ? "Min 4 chars."
-        : v.trim().length > 120
-        ? "Max 120 chars."
+        ? "UPI ID required."
+        : v.trim().length < 3
+        ? "Enter a valid UPI ID."
+        : v.trim().length > 64
+        ? "UPI ID too long."
         : null,
   };
 
@@ -123,12 +100,9 @@ const OrganisationPage = () => {
         setHasOrganisation(true);
         setFormData({
           name: data.organisation.name || "",
-            description: data.organisation.description || "",
-            contact_email: data.organisation.contact_email || "",
-            bankAccountName: data.organisation.bank?.accountName || "",
-            bankAccountNumber: data.organisation.bank?.accountNumber || "",
-            bankIfsc: data.organisation.bank?.ifsc || "",
-            bankAddress: data.organisation.bank?.address || "",
+          description: data.organisation.description || "",
+          contact_email: data.organisation.contact_email || "",
+          upiId: data.organisation.payoutPreferences?.upiId || "",
         });
         if (data.imageUrl) setImagePreview(data.imageUrl);
       } catch (e) {
@@ -193,10 +167,7 @@ const OrganisationPage = () => {
     fd.append("name", formData.name);
     fd.append("description", formData.description);
     fd.append("contact_email", formData.contact_email);
-    if (formData.bankAccountName) fd.append("bank.accountName", formData.bankAccountName);
-    if (formData.bankAccountNumber) fd.append("bank.accountNumber", formData.bankAccountNumber);
-    if (formData.bankIfsc) fd.append("bank.ifsc", formData.bankIfsc.toUpperCase());
-    if (formData.bankAddress) fd.append("bank.address", formData.bankAddress);
+    if (formData.upiId) fd.append("upiId", formData.upiId);
     if (profileImage) fd.append("image", profileImage);
     if (kycDoc) fd.append("document", kycDoc);
 
@@ -218,20 +189,14 @@ const OrganisationPage = () => {
       } else if (res.status === 422 && Array.isArray(data.data)) {
         const map = {};
         data.data.forEach((err) => {
-            if (err.path) {
-              // map backend dot paths to our field names
-              const key =
-                err.path === "bank.accountName"
-                  ? "bankAccountName"
-                  : err.path === "bank.accountNumber"
-                  ? "bankAccountNumber"
-                  : err.path === "bank.ifsc"
-                  ? "bankIfsc"
-                  : err.path === "bank.address"
-                  ? "bankAddress"
-                  : err.path;
-              if (!map[key]) map[key] = err.msg;
-            }
+          if (err.path) {
+            // map backend dot paths to our field names
+            const key =
+              err.path === "payoutPreferences.upiId"
+                ? "upiId"
+                : err.path;
+            if (!map[key]) map[key] = err.msg;
+          }
         });
         setValidationErrors(map);
         setFormErrorSummary("Validation failed on server.");
@@ -267,10 +232,7 @@ const OrganisationPage = () => {
           name: "",
           description: "",
           contact_email: "",
-          bankAccountName: "",
-          bankAccountNumber: "",
-          bankIfsc: "",
-          bankAddress: "",
+          upiId: "",
         });
         setImagePreview(null);
       } else {
@@ -346,18 +308,18 @@ const OrganisationPage = () => {
             {validationErrors.name && <p className={styles.errorText}>{validationErrors.name}</p>}
           </div>
 
-            <div className={styles.formGroup}>
-              <label className={styles.label}>Description</label>
-              <textarea
-                name="description"
-                value={formData.description}
-                onChange={handleInputChange}
-                className={`${styles.textarea} ${validationErrors.description ? 'error' : ''}`}
-                rows={4}
-                required
-              />
-              {validationErrors.description && <p className={styles.errorText}>{validationErrors.description}</p>}
-            </div>
+          <div className={styles.formGroup}>
+            <label className={styles.label}>Description</label>
+            <textarea
+              name="description"
+              value={formData.description}
+              onChange={handleInputChange}
+              className={`${styles.textarea} ${validationErrors.description ? 'error' : ''}`}
+              rows={4}
+              required
+            />
+            {validationErrors.description && <p className={styles.errorText}>{validationErrors.description}</p>}
+          </div>
 
           <div className={styles.formGroup}>
             <label className={styles.label}>Contact Email</label>
@@ -372,50 +334,18 @@ const OrganisationPage = () => {
             {validationErrors.contact_email && <p className={styles.errorText}>{validationErrors.contact_email}</p>}
           </div>
 
-          <h3 className={styles.sectionTitle}>Bank Details</h3>
+          <h3 className={styles.sectionTitle}>Payout (UPI)</h3>
           <div className={styles.formGroup}>
-            <label className={styles.label}>Account Name</label>
+            <label className={styles.label}>UPI ID</label>
             <input
-              name="bankAccountName"
-              value={formData.bankAccountName}
+              name="upiId"
+              value={formData.upiId}
               onChange={handleInputChange}
-              className={`${styles.input} ${validationErrors.bankAccountName ? 'error' : ''}`}
+              className={`${styles.input} ${validationErrors.upiId ? 'error' : ''}`}
               required
+              placeholder="example@bank"
             />
-            {validationErrors.bankAccountName && <p className={styles.errorText}>{validationErrors.bankAccountName}</p>}
-          </div>
-          <div className={styles.formGroup}>
-            <label className={styles.label}>Account Number</label>
-            <input
-              name="bankAccountNumber"
-              value={formData.bankAccountNumber}
-              onChange={handleInputChange}
-              className={`${styles.input} ${validationErrors.bankAccountNumber ? 'error' : ''}`}
-              required
-            />
-            {validationErrors.bankAccountNumber && <p className={styles.errorText}>{validationErrors.bankAccountNumber}</p>}
-          </div>
-          <div className={styles.formGroup}>
-            <label className={styles.label}>IFSC</label>
-            <input
-              name="bankIfsc"
-              value={formData.bankIfsc}
-              onChange={handleInputChange}
-              className={`${styles.input} ${validationErrors.bankIfsc ? 'error' : ''}`}
-              required
-            />
-            {validationErrors.bankIfsc && <p className={styles.errorText}>{validationErrors.bankIfsc}</p>}
-          </div>
-          <div className={styles.formGroup}>
-            <label className={styles.label}>Bank Address</label>
-            <input
-              name="bankAddress"
-              value={formData.bankAddress}
-              onChange={handleInputChange}
-              className={`${styles.input} ${validationErrors.bankAddress ? 'error' : ''}`}
-              required
-            />
-            {validationErrors.bankAddress && <p className={styles.errorText}>{validationErrors.bankAddress}</p>}
+            {validationErrors.upiId && <p className={styles.errorText}>{validationErrors.upiId}</p>}
           </div>
 
           <h3 className={styles.sectionTitle}>KYC Document</h3>

@@ -17,24 +17,11 @@ const organisationSchema = new Schema(
     },
     imageName: { type: String, required: true, unique: true },
 
-    // settlements are manual
-
-    bank: {
-      accountName: { type: String, required: true, trim: true },
-      accountNumber: { type: String, required: true, trim: true },
-      ifsc: {
-        type: String,
-        required: true,
-        trim: true,
-        uppercase: true,
-        match: [/^[A-Z]{4}0[A-Z0-9]{6}$/, "Invalid IFSC code"],
-      },
-      address: { type: String, required: true, trim: true },
-    },
     payoutPreferences: {
       settlementMode: { type: String, enum: ["manual"], default: "manual" },
       platformFeePercent: { type: Number, default: 5, min: 0, max: 25 },
       minPayoutAmount: { type: Number, default: 0, min: 0 },
+      upiId: { type: String, trim: true, default: "" },
     },
 
     pendingPayoutBalance: { type: Number, default: 0, min: 0 },

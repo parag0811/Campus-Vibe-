@@ -15,10 +15,8 @@ function normalizeOrgBody(req, _res, next) {
   const setIfMissing = (k, v) => {
     if (v !== undefined && req.body[k] === undefined) req.body[k] = v;
   };
-  setIfMissing("bank.accountName", req.body.bankAccountName);
-  setIfMissing("bank.accountNumber", req.body.bankAccountNumber);
-  setIfMissing("bank.ifsc", (req.body.bankIfsc || "").toUpperCase().trim());
-  setIfMissing("bank.address", req.body.bankAddress);
+  // map payout UPI id into payoutPreferences for controller convenience
+  setIfMissing("payoutPreferences.upiId", req.body.upiId || req.body["payoutPreferences.upiId"]);
   setIfMissing("kyc.fullName", req.body["kyc.fullName"]);
   setIfMissing("kyc.phoneNumber", req.body["kyc.phoneNumber"]);
   next();
@@ -35,10 +33,10 @@ const organisationValidate = [
     .notEmpty().withMessage("E-mail field can not be empty.")
     .isEmail().withMessage("Enter a valid email.")
     .trim().toLowerCase().normalizeEmail(),
-  body("razorpayAccountId")
-    .optional()
-    .matches(/^[A-Za-z0-9]{9,15}$/)
-    .withMessage("Razorpay account ID must be 9-15 alphanumeric characters.")
+  // require a UPI ID for payouts (basic presence check)
+  body("upiId")
+    .notEmpty().withMessage("UPI ID is required for payouts.")
+    .isLength({ min: 3, max: 64 }).withMessage("UPI ID seems invalid.")
     .trim(),
 ];
 
@@ -53,24 +51,7 @@ const kycValidate = [
 ];
 
 // Indian account number: digits only, 9–18; IFSC: ABCD0XXXXXX; address min 5
-const bankValidate = [
-  body("bank.accountName")
-    .notEmpty().withMessage("Bank account name required.")
-    .isLength({ min: 2, max: 80 }).withMessage("Account name length invalid.")
-    .trim().escape(),
-  body("bank.accountNumber")
-    .notEmpty().withMessage("Bank account number required.")
-    .matches(/^[0-9]{9,18}$/).withMessage("Invalid account number.")
-    .trim(),
-  body("bank.ifsc")
-    .notEmpty().withMessage("IFSC required.")
-    .matches(/^[A-Z]{4}0[A-Z0-9]{6}$/).withMessage("Invalid IFSC.")
-    .trim().toUpperCase(),
-  body("bank.address")
-    .notEmpty().withMessage("Bank branch address required.")
-    .isLength({ min: 5, max: 120 }).withMessage("Address length invalid.")
-    .trim().escape()
-];
+// bank validators removed: we only accept UPI ID now for payouts
 
 const kycUpdateValidate = [
   body("kyc.fullName")
@@ -82,24 +63,7 @@ const kycUpdateValidate = [
     .matches(/^[0-9+\-\s]{6,15}$/).withMessage("Enter a valid phone number.")
 ];
 
-const bankUpdateValidate = [
-  body("bank.accountName")
-    .optional()
-    .isLength({ min: 2, max: 80 }).withMessage("Account name length invalid.")
-    .trim().escape(),
-  body("bank.accountNumber")
-    .optional()
-    .matches(/^[0-9]{9,18}$/).withMessage("Invalid account number.")
-    .trim(),
-  body("bank.ifsc")
-    .optional()
-    .matches(/^[A-Z]{4}0[A-Z0-9]{6}$/).withMessage("Invalid IFSC.")
-    .trim().toUpperCase(),
-  body("bank.address")
-    .optional()
-    .isLength({ min: 5, max: 120 }).withMessage("Address length invalid.")
-    .trim().escape()
-];
+// bank update validators removed
 
 // Anyone logged-in can view their org
 router.get(
@@ -118,7 +82,6 @@ router.post(
   normalizeOrgBody,
   organisationValidate,
   kycValidate,
-  bankValidate,
   organisation_controller.createOrganisation
 );
 
@@ -133,7 +96,6 @@ router.put(
   normalizeOrgBody,
   organisationValidate,
   kycUpdateValidate,
-  bankUpdateValidate,
   organisation_controller.updateOrganisationDetail
 );
 

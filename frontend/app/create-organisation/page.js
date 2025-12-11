@@ -13,13 +13,10 @@ export default function CreateOrganisationOnboarding() {
     name: "",
     description: "",
     contact_email: "",
-    razorpayAccountId: "",
+    upiId: "",
     "kyc.fullName": "",
     "kyc.phoneNumber": "",
-    bankAccountName: "",
-    bankAccountNumber: "",
-    bankIfsc: "",
-    bankAddress: "",
+    // bank fields removed; only upiId is required for payouts
   });
   const [image, setImage] = useState(null);
   const [documentFile, setDocumentFile] = useState(null);
@@ -59,10 +56,7 @@ export default function CreateOrganisationOnboarding() {
   const clearToast = () => setToast({ show: false, type: "info", text: "" });
 
   const normalizePath = (p) => {
-    if (p === "bank.accountName") return "bankAccountName";
-    if (p === "bank.accountNumber") return "bankAccountNumber";
-    if (p === "bank.ifsc") return "bankIfsc";
-    if (p === "bank.address") return "bankAddress";
+    if (p === "payoutPreferences.upiId") return "upiId";
     if (p === "kyc.fullName") return "kyc.fullName";
     if (p === "kyc.phoneNumber") return "kyc.phoneNumber";
     return p;
@@ -70,10 +64,7 @@ export default function CreateOrganisationOnboarding() {
 
   const onChange = (e) => {
     const { name, value } = e.target;
-    let val = value;
-    if (name === "bankIfsc") val = value.toUpperCase();
-    if (name === "bankAccountNumber") val = value.replace(/[^0-9]/g, "");
-    setForm((p) => ({ ...p, [name]: val }));
+    setForm((p) => ({ ...p, [name]: value }));
     setErrors((p) => ({ ...p, [name]: null }));
   };
 
@@ -112,15 +103,10 @@ export default function CreateOrganisationOnboarding() {
     if (!form.name || form.name.trim().length < 6 || form.name.trim().length > 60) v.name = "Name must be 6-60 characters.";
     if (!form.description || form.description.trim().length < 6 || form.description.trim().length > 100) v.description = "Description must be 6-100 characters.";
     if (!form.contact_email || !/^\S+@\S+\.\S+$/.test(form.contact_email)) v.contact_email = "Enter a valid email.";
-    if (!form.razorpayAccountId || !/^acc_[A-Za-z0-9]+$/.test(form.razorpayAccountId) || form.razorpayAccountId.length < 10 || form.razorpayAccountId.length > 40)
-      v.razorpayAccountId = "Invalid Razorpay Account ID.";
     if (!form["kyc.fullName"] || form["kyc.fullName"].trim().length < 2) v["kyc.fullName"] = "Full name is required.";
     if (!form["kyc.phoneNumber"] || !/^[0-9+\-\s]{6,15}$/.test(form["kyc.phoneNumber"])) v["kyc.phoneNumber"] = "Enter a valid phone number.";
-    if (!form.bankAccountName || form.bankAccountName.trim().length < 2) v.bankAccountName = "Bank account name required.";
-    if (!form.bankAccountNumber || !/^[0-9]{9,18}$/.test(form.bankAccountNumber.trim())) v.bankAccountNumber = "Invalid account number.";
-    const ifscUpper = (form.bankIfsc || "").trim().toUpperCase();
-    if (!ifscUpper || !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifscUpper)) v.bankIfsc = "Invalid IFSC.";
-    if (!form.bankAddress || form.bankAddress.trim().length < 5) v.bankAddress = "Address length invalid.";
+    // UPI ID basic check (non-empty); keep validation light to accept different UPI formats
+    if (!form.upiId || form.upiId.trim().length < 3) v.upiId = "Enter a valid UPI ID.";
     if (!image) v.image = "Organisation logo required.";
     if (!documentFile) v.document = "KYC document required.";
     return v;
@@ -141,13 +127,9 @@ export default function CreateOrganisationOnboarding() {
     fd.append("name", form.name.trim());
     fd.append("description", form.description.trim());
     fd.append("contact_email", form.contact_email.trim().toLowerCase());
-    fd.append("razorpayAccountId", form.razorpayAccountId.trim());
+    fd.append("upiId", form.upiId.trim());
     fd.append("kyc.fullName", form["kyc.fullName"].trim());
     fd.append("kyc.phoneNumber", form["kyc.phoneNumber"].trim());
-    fd.append("bankAccountName", form.bankAccountName.trim());
-    fd.append("bankAccountNumber", form.bankAccountNumber.trim());
-    fd.append("bankIfsc", form.bankIfsc.trim().toUpperCase());
-    fd.append("bankAddress", form.bankAddress.trim());
     fd.append("image", image);
     fd.append("document", documentFile);
 
@@ -199,7 +181,7 @@ export default function CreateOrganisationOnboarding() {
         <section className={styles.container}>
           <div className={styles.hero}>
             <h1 className={styles.title}>Organisation Onboarding</h1>
-            <p className={styles.subtitle}>Provide organisation, bank and KYC details to continue.</p>
+            <p className={styles.subtitle}>Provide organisation UPI and KYC details to continue.</p>
           </div>
 
           {toast.show && (
@@ -248,16 +230,16 @@ export default function CreateOrganisationOnboarding() {
             </div>
 
             <div className={styles.formGroup}>
-              <label className={styles.label} htmlFor="razorpayAccountId">Razorpay Account ID</label>
+              <label className={styles.label} htmlFor="upiId">UPI ID</label>
               <input
-                id="razorpayAccountId"
-                name="razorpayAccountId"
-                className={`${styles.input} ${errors.razorpayAccountId ? styles.inputError : ""}`}
-                value={form.razorpayAccountId}
+                id="upiId"
+                name="upiId"
+                className={`${styles.input} ${errors.upiId ? styles.inputError : ""}`}
+                value={form.upiId}
                 onChange={onChange}
-                placeholder="acc_XXXXXXXXXXXX"
+                placeholder="example@bank"
               />
-              {errors.razorpayAccountId && <div className={styles.error}>{errors.razorpayAccountId}</div>}
+              {errors.upiId && <div className={styles.error}>{errors.upiId}</div>}
             </div>
 
             <div className={styles.formGroup}>
@@ -302,61 +284,7 @@ export default function CreateOrganisationOnboarding() {
               </div>
             </div>
 
-            <div className={styles.gridTwo}>
-              <div className={styles.formGroup}>
-                <label className={styles.label} htmlFor="bankAccountName">Bank Account Name</label>
-                <input
-                  id="bankAccountName"
-                  name="bankAccountName"
-                  className={`${styles.input} ${errors.bankAccountName ? styles.inputError : ""}`}
-                  value={form.bankAccountName}
-                  onChange={onChange}
-                  placeholder="Account holder name"
-                />
-                {errors.bankAccountName && <div className={styles.error}>{errors.bankAccountName}</div>}
-              </div>
-
-              <div className={styles.formGroup}>
-                <label className={styles.label} htmlFor="bankAccountNumber">Bank Account Number</label>
-                <input
-                  id="bankAccountNumber"
-                  name="bankAccountNumber"
-                  className={`${styles.input} ${errors.bankAccountNumber ? styles.inputError : ""}`}
-                  value={form.bankAccountNumber}
-                  onChange={onChange}
-                  placeholder="XXXXXXXXXXXX"
-                />
-                {errors.bankAccountNumber && <div className={styles.error}>{errors.bankAccountNumber}</div>}
-              </div>
-            </div>
-
-            <div className={styles.gridTwo}>
-              <div className={styles.formGroup}>
-                <label className={styles.label} htmlFor="bankIfsc">IFSC Code</label>
-                <input
-                  id="bankIfsc"
-                  name="bankIfsc"
-                  className={`${styles.input} ${errors.bankIfsc ? styles.inputError : ""}`}
-                  value={form.bankIfsc}
-                  onChange={onChange}
-                  placeholder="ABCD0XXXXXX"
-                />
-                {errors.bankIfsc && <div className={styles.error}>{errors.bankIfsc}</div>}
-              </div>
-
-              <div className={styles.formGroup}>
-                <label className={styles.label} htmlFor="bankAddress">Bank Address</label>
-                <input
-                  id="bankAddress"
-                  name="bankAddress"
-                  className={`${styles.input} ${errors.bankAddress ? styles.inputError : ""}`}
-                  value={form.bankAddress}
-                  onChange={onChange}
-                  placeholder="Branch address"
-                />
-                {errors.bankAddress && <div className={styles.error}>{errors.bankAddress}</div>}
-              </div>
-            </div>
+            {/* bank fields removed — only UPI is required */}
 
             <div className={styles.gridTwo}>
               <div className={styles.formGroup}>

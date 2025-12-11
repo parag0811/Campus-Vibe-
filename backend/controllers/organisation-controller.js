@@ -85,40 +85,14 @@ exports.createOrganisation = async (req, res, next) => {
       contact_email,
       description = "",
       kyc = {},
-      bankAccountName,
-      bankAccountNumber,
-      bankIfsc,
-      bankAddress,
+      upiId,
     } = req.body;
 
     const kycFullName = kyc.fullName || req.body["kyc.fullName"];
     const kycPhoneNumber = kyc.phoneNumber || req.body["kyc.phoneNumber"];
 
-    const accName = (
-      bankAccountName ??
-      req.body["bank.accountName"] ??
-      req.body.bank?.accountName ??
-      ""
-    ).trim();
-    const accNum = (
-      bankAccountNumber ??
-      req.body["bank.accountNumber"] ??
-      req.body.bank?.accountNumber ??
-      ""
-    ).trim();
-    const ifsc = (
-      bankIfsc ??
-      req.body["bank.ifsc"] ??
-      req.body.bank?.ifsc ??
-      ""
-    )
-      .toUpperCase()
-      .trim();
-    const addr = (
-      bankAddress ??
-      req.body["bank.address"] ??
-      req.body.bank?.address ??
-      ""
+    const upi = (
+      upiId ?? req.body["payoutPreferences.upiId"] ?? req.body.payoutPreferences?.upiId ?? ""
     ).trim();
 
     const imageFile = req.files?.image?.[0];
@@ -162,20 +136,12 @@ exports.createOrganisation = async (req, res, next) => {
       throw error;
     }
 
-    if (!accName)
-      throw Object.assign(new Error("Bank account name is required."), {
-        statusCode: 422,
-      });
-    if (!/^[0-9]{9,18}$/.test(accNum))
-      throw Object.assign(new Error("Invalid bank account number."), {
-        statusCode: 422,
-      });
-    if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc))
-      throw Object.assign(new Error("Invalid IFSC code."), { statusCode: 422 });
-    if (addr.length < 5)
-      throw Object.assign(new Error("Bank address is too short."), {
-        statusCode: 422,
-      });
+    // Require UPI ID for payouts instead of bank details
+    if (!upi) {
+      const error = new Error("UPI ID is required for payouts.");
+      error.statusCode = 422;
+      throw error;
+    }
 
     const randomName = (bytes = 32) =>
       crypto.randomBytes(bytes).toString("hex");
@@ -209,12 +175,8 @@ exports.createOrganisation = async (req, res, next) => {
       description,
       contact_email,
       imageName: imageKey,
-      bank: {
-        accountName: accName,
-        accountNumber: accNum,
-        ifsc,
-        address: addr,
-      },
+      // bank details removed; use UPI
+      // (keep compatibility with older code that may expect a bank field by leaving it out)
       kyc: {
         fullName: kycFullName,
         phoneNumber: kycPhoneNumber,
@@ -225,6 +187,7 @@ exports.createOrganisation = async (req, res, next) => {
         platformFeePercent: 5,
         minPayoutAmount: 0,
         settlementMode: "manual",
+        upiId: upi,
       },
     });
 
@@ -264,23 +227,13 @@ exports.updateOrganisationDetail = async (req, res, next) => {
       throw error;
     }
 
-    // Map optional bank fields from dot notation if sent that way
-    const bankAccountName =
-      req.body["bank.accountName"] || req.body.bank?.accountName;
-    const bankAccountNumber =
-      req.body["bank.accountNumber"] || req.body.bank?.accountNumber;
-    const bankIfsc = (
-      req.body["bank.ifsc"] ||
-      req.body.bank?.ifsc ||
-      ""
-    ).toUpperCase();
-    const bankAddress = req.body["bank.address"] || req.body.bank?.address;
-
-    if (bankAccountName) organisation.bank.accountName = bankAccountName.trim();
-    if (bankAccountNumber)
-      organisation.bank.accountNumber = bankAccountNumber.trim();
-    if (bankIfsc) organisation.bank.ifsc = bankIfsc.trim();
-    if (bankAddress) organisation.bank.address = bankAddress.trim();
+    // Accept updates to UPI ID. Bank details are no longer accepted/stored.
+    const upiUpdate =
+      req.body.upiId || req.body["payoutPreferences.upiId"] || req.body.payoutPreferences?.upiId;
+    if (upiUpdate) {
+      organisation.payoutPreferences = organisation.payoutPreferences || {};
+      organisation.payoutPreferences.upiId = String(upiUpdate).trim();
+    }
 
     const kycFullName = req.body["kyc.fullName"] || req.body.kyc?.fullName;
     const kycPhoneNumber =
