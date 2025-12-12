@@ -1,81 +1,71 @@
 const dotenv = require("dotenv");
 dotenv.config();
-const nodemailer = require("nodemailer");
 
-let transporter = null;
-
-function getTransporter() {
-  if (transporter) return transporter;
-
-  const host = process.env.SMTP_HOST;
-  const port = parseInt(process.env.SMTP_PORT || "0", 10);
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
-
-  const missing = [];
-  if (!host) missing.push("SMTP_HOST");
-  if (!port) missing.push("SMTP_PORT");
-  if (!user) missing.push("SMTP_USER");
-  if (!pass) missing.push("SMTP_PASS");
-
-  if (missing.length) {
-    const err = new Error(`SMTP configuration missing: ${missing.join(", ")}`);
-    err.code = "NO_SMTP_CONFIG";
-    console.error(err.message);
-    throw err;
+function initSib() {
+  let SibApiV3Sdk;
+  try {
+    SibApiV3Sdk = require("sib-api-v3-sdk");
+  } catch (err) {
+    const e = new Error("Package 'sib-api-v3-sdk' not installed. Run 'npm install sib-api-v3-sdk' in backend/");
+    e.code = "SIB_SDK_MISSING";
+    throw e;
   }
 
-  const connectionTimeout = parseInt(process.env.SMTP_CONN_TIMEOUT || "10000", 10);
-  const greetingTimeout = parseInt(process.env.SMTP_GREETING_TIMEOUT || "5000", 10);
-  const socketTimeout = parseInt(process.env.SMTP_SOCKET_TIMEOUT || "10000", 10);
+  const defaultClient = SibApiV3Sdk.ApiClient.instance;
+  if (!defaultClient) {
+    throw new Error("sib-api-v3-sdk default client not available");
+  }
 
-  const secure = port === 465;
+  const apiKey = defaultClient.authentications["api-key"];
+  const key = process.env.BREVO_API_KEY;
+  if (!key) {
+    const e = new Error("BREVO_API_KEY is missing");
+    e.code = "NO_BREVO_KEY";
+    throw e;
+  }
+  apiKey.apiKey = key;
 
-  transporter = nodemailer.createTransport({
-    host,
-    port,
-    secure,
-    auth: { user, pass },
-    connectionTimeout,
-    greetingTimeout,
-    socketTimeout,
-    tls: { rejectUnauthorized: process.env.SMTP_REJECT_UNAUTHORIZED !== "false" },
-  });
-
-  // Verify connection in background and log a succinct message if it fails.
-  transporter.verify().then(() => {
-    console.log("SMTP: connection verified");
-  }).catch((err) => {
-    console.error("SMTP verify failed:", err && err.message ? err.message : err);
-  });
-
-  return transporter;
+  return { SibApiV3Sdk, api: new SibApiV3Sdk.TransactionalEmailsApi() };
 }
 
 async function sendEmail(to, subject, text) {
   try {
-    const fromAddress = process.env.SMTP_FROM;
-    if (!fromAddress) throw new Error("SMTP_FROM is missing");
+    const fromEmail = process.env.BREVO_FROM;
+    const fromName = process.env.BREVO_FROM_NAME || "Campus Vibe";
+    if (!fromEmail) throw new Error("BREVO_FROM is missing");
 
-    const t = getTransporter();
+    const { SibApiV3Sdk, api } = initSib();
 
-    const info = await t.sendMail({ from: fromAddress, to, subject, text });
+    const sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail();
+    sendSmtpEmail.sender = { email: fromEmail, name: fromName };
+    sendSmtpEmail.to = [{ email: to }];
+    sendSmtpEmail.subject = subject;
 
-    console.log("Email sent:", info.messageId);
-    return { ok: true, id: info.messageId };
+    if (text && typeof text === "object" && text.html) {
+      sendSmtpEmail.htmlContent = text.html;
+      if (text.text) sendSmtpEmail.textContent = text.text;
+    } else {
+      sendSmtpEmail.textContent = String(text || "");
+    }
+
+    const resp = await api.sendTransacEmail(sendSmtpEmail);
+    return { ok: true, id: resp && (resp.messageId || resp['messageId'] || null) };
   } catch (err) {
-    console.error("Email error:", err && err.message ? err.message : err);
+    const msg = err && err.body && err.body.message ? err.body.message : err && err.message ? err.message : String(err);
+    console.error("Brevo (sib) email error:", msg);
     const e = new Error("Mail provider error");
     e.code = "MAIL_SEND_FAILED";
-    e.detail = err && err.message ? err.message : String(err);
+    e.detail = msg;
     throw e;
   }
 }
 
-// Expose a small test helper so you can verify SMTP connectivity from the server:
-sendEmail.test = async function testSmtp() {
-  const t = getTransporter();
-  await t.verify();
+sendEmail.test = async function testSib() {
+  const recipient = process.env.BREVO_TEST_RECIPIENT;
+  if (recipient) {
+    return await sendEmail(recipient, "Brevo (sib) test", "This is a test email from Campus Vibe.");
+  }
+  if (!process.env.BREVO_API_KEY) throw new Error("BREVO_API_KEY is missing");
   return true;
 };
 
