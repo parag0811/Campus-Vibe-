@@ -43,6 +43,9 @@ export default function MainFooter() {
             <Link href="/contact" className={styles.footerLink}>
               Get in touch
             </Link>
+            <Link href="/shipping-policy" className={styles.footerLink}>
+              Shipping
+            </Link>
             <Link href="/privacy-policy" className={styles.footerLink}>
               Privacy
             </Link>
