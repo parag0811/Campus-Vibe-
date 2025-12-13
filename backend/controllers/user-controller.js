@@ -5,6 +5,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const sendEmail = require("../utils/mailSender.js");
+const loadTemplate = require("../utils/loadTemplate");
 
 const User = require("../models/user.js");
 
@@ -88,11 +89,11 @@ exports.sendVerificationOTP = async (req, res) => {
     user.lastOtpSentAt = new Date();
     await user.save();
 
-    await sendEmail(
-      email,
-      "OTP for Verification",
-      `Your Campus Vibe verification code is ${otp}.\nThis code expires in 15 minutes.`
-    );
+    const otpHtml = loadTemplate("otp.html", { OTP: otp });
+    await sendEmail(email, "OTP for Verification", {
+      html: otpHtml,
+      text: `Your Campus Vibe verification code is ${otp}. This code expires in 15 minutes.`,
+    });
 
     return res.json({
       success: true,
@@ -137,11 +138,11 @@ exports.resendVerificationOTP = async (req, res) => {
     user.lastOtpSentAt = new Date();
     await user.save();
 
-    await sendEmail(
-      email,
-      "OTP for Verification",
-      `Your new Campus Vibe verification code is ${otp}.\nThis code expires in 15 minutes.`
-    );
+    const otpHtml2 = loadTemplate("otp.html", { OTP: otp });
+    await sendEmail(email, "OTP for Verification", {
+      html: otpHtml2,
+      text: `Your new Campus Vibe verification code is ${otp}. This code expires in 15 minutes.`,
+    });
 
     return res.json({ success: true, message: "OTP re-sent to email." });
   } catch (error) {
@@ -447,11 +448,13 @@ exports.forgotPassword = async (req, res) => {
     const baseUrl = process.env.CLIENT_URL;
     const resetURL = `${baseUrl.replace(/\/$/, "")}/reset-password/${token}`;
 
-    await sendEmail(
-      user.email,
-      "Password Reset",
-      `Reset your password using this link (valid 10 minutes): ${resetURL}`
-    );
+    const forgotHtml = loadTemplate("forgotPassword.html", {
+      RESET_LINK: resetURL,
+    });
+    await sendEmail(user.email, "Password Reset", {
+      html: forgotHtml,
+      text: `Reset your password using this link (valid 10 minutes): ${resetURL}.`,
+    });
 
     return res
       .status(200)
