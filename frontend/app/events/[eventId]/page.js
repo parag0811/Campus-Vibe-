@@ -205,7 +205,7 @@ const EventDetailPage = () => {
 
   const isFree = () => Number(event?.price) === 0;
 
-  const isTestMode = process.env.NODE_ENV !== "production";
+  // Always show the payment test-note for paid events.
   // Optionally tighten registration window:
   const isRegistrationOpen = () => {
     if (!event) return false;
@@ -336,7 +336,7 @@ const EventDetailPage = () => {
                 </p>
               </div>
 
-              {!isFree() && isTestMode && (
+              {!isFree() && (
                 <div className={styles.testModeNote} role="note">
                   <span className={styles.testModeIcon}>⚠️</span>
                   <div className={styles.testModeText}>
