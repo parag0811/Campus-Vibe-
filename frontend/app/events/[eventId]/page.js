@@ -205,6 +205,7 @@ const EventDetailPage = () => {
 
   const isFree = () => Number(event?.price) === 0;
 
+  const isTestMode = process.env.NODE_ENV !== "production";
   // Optionally tighten registration window:
   const isRegistrationOpen = () => {
     if (!event) return false;
@@ -334,6 +335,16 @@ const EventDetailPage = () => {
                   {formatDate(event.registeration_deadline)}
                 </p>
               </div>
+
+              {!isFree() && isTestMode && (
+                <div className={styles.testModeNote} role="note">
+                  <span className={styles.testModeIcon}>⚠️</span>
+                  <div className={styles.testModeText}>
+                    <strong>Test Mode:</strong> Payments are in test mode — no
+                    real charges will be made.
+                  </div>
+                </div>
+              )}
 
               <button
                 className={styles.bookNowBtn}
