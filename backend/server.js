@@ -15,18 +15,17 @@ const ownerSettlementRoute = require("./routes/owner-settlement-route");
 
 const app = express();
 
-// When running behind proxies (Render, Vercel, etc.) express should trust
-// the first proxy so `secure` and protocol detection work properly.
 app.set("trust proxy", 1);
 
 const CLIENT_URL = process.env.CLIENT_URL;
 
-
-// Use `cors` middleware to correctly set Access-Control-Allow-* headers and
-// support credentials. This avoids subtle header mismatches that block
-// browser cookies in cross-origin deployments.
 app.use(
-  cors({ origin: CLIENT_URL, credentials: true, methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"], allowedHeaders: ["Content-Type", "Authorization", "Cache-Control"] })
+  cors({
+    origin: CLIENT_URL,
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "Cache-Control"],
+  }),
 );
 
 app.use(express.json());
@@ -38,6 +37,10 @@ app.use("/org-admin", orgAdminOwnerRoute);
 app.use("/", eventUserRoute);
 app.use("/payment", paymentRoutes);
 app.use("/owner", ownerSettlementRoute);
+
+app.get("/", (req, res) => {
+  res.send("OK");
+});
 
 app.use((error, req, res, next) => {
   const status = error.statusCode || 500;
